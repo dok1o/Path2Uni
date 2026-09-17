@@ -76,6 +76,9 @@ test('coordinates are valid and sit in the country they claim', async () => {
   // the wrong country, or latitude and longitude typed the wrong way round. Strict polygon
   // containment is too harsh here — the 110m shapes are coarse, so genuine border cities
   // (Aachen, Maastricht, Enschede, Geneva, Lugano) fall just outside their own outline.
+  // The app's own map now uses the teammates' 50m data; this 110m file is kept because it
+  // is what makes this check possible, and 108KB is a cheap price for catching a city filed
+  // under the wrong country.
   const topo = JSON.parse(await readFile(new URL('../public/world-countries-110m.json', import.meta.url), 'utf8'))
   const shapes = feature(topo, topo.objects.countries).features
   const byIso = Object.fromEntries(shapes.filter(s => s.properties.iso).map(s => [s.properties.iso, s]))

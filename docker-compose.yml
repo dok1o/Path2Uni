@@ -1,0 +1,39 @@
+services:
+  core-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${CORE_DB_USER:-path2uni}
+      POSTGRES_PASSWORD: ${CORE_DB_PASSWORD:-path2uni_local}
+      POSTGRES_DB: ${CORE_DB_NAME:-path2uni_core}
+    ports:
+      - "${CORE_DB_PORT:-5432}:5432"
+    volumes:
+      - core_data:/var/lib/postgresql/data
+      - ./database/core:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  intelligence-db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${INTEL_DB_USER:-path2uni_ai}
+      POSTGRES_PASSWORD: ${INTEL_DB_PASSWORD:-path2uni_ai_local}
+      POSTGRES_DB: ${INTEL_DB_NAME:-path2uni_intelligence}
+    ports:
+      - "${INTEL_DB_PORT:-5433}:5432"
+    volumes:
+      - intelligence_data:/var/lib/postgresql/data
+      - ./database/intelligence:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  core_data:
+  intelligence_data:
+

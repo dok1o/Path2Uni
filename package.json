@@ -1,0 +1,26 @@
+{
+  "name": "path2uni",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js",
+    "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/api.test.js",
+    "keygen": "node scripts/keygen.js",
+    "catalog:fetch": "node scripts/fetch-wikidata.js",
+    "catalog:build": "node scripts/build-catalog.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "d3-geo": "^3.1.1",
+    "pg": "^8.23.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "topojson-client": "^3.1.0",
+    "vite": "latest"
+  }
+}

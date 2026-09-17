@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import mascot from './assets/leo-mascot.png'
-import { cloneAdmissionPlan } from './data/admissionGraph.js'
 import WorldMap from './WorldMap.jsx'
 import Auth from './Auth.jsx'
 import Onboarding from './Onboarding.jsx'
@@ -133,7 +132,61 @@ function Universities() {
 
 function Friends() { return <main className="page friends-page"><section className="list-hero"><span className="eyebrow purple">YOUR CREW</span><h1>Progress is better<br/>together.</h1><p>Cheer each other on through every brave step.</p></section><div className="friend-list">{[['Amir','Chose an English test','A'],['Lina','Finished profile basics','L'],['Noah','Saved 3 universities','N']].map((f,i)=><article key={f[0]}><span className={`avatar a${i+1}`}>{f[2]}</span><div><h3>{f[0]}</h3><p>{f[1]} · today</p></div><button className="high-five">✋ High-five</button></article>)}</div></main> }
 
-function Chat({ open, onClose, name }) { const [messages, setMessages] = useState([{from:'leo', text:`Hi ${name}! I’m Leo, your admission guide. What would you like to make clearer today?`}]); const [draft, setDraft] = useState(''); const send = () => { if (!draft.trim()) return; setMessages(v => [...v, {from:'user', text:draft}, {from:'leo', text:'Great question. I’ve added that to your personal plan — let’s take it one piece at a time.'}]); setDraft('') }; return <aside className={`chat ${open ? 'open' : ''}`} aria-hidden={!open}><div className="chat-head"><div><img src={mascot} alt=""/><span><b>Leo AI</b><small>Here to guide you</small></span></div><button onClick={onClose}>×</button></div><div className="chat-messages">{messages.map((m,i)=><p className={m.from} key={i}>{m.text}</p>)}</div><div className="chat-quick"><button onClick={() => setDraft('Help me choose a language test')}>Choose a language test</button><button onClick={() => setDraft('What should I do this week?')}>Plan my week</button></div><form onSubmit={e=>{e.preventDefault();send()}}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Ask Leo anything…"/><button aria-label="Send message">{icons.arrow}</button></form></aside> }
+function Chat({ open, onClose, name, hasPlan }) {
+  const greeting = { from: 'leo', text: `Hi ${name}! I\u2019m Leo, your admission guide. What would you like to make clearer today?` }
+  const [messages, setMessages] = useState([greeting])
+  const [draft, setDraft] = useState('')
+  const [thinking, setThinking] = useState(false)
+  const endRef = useRef(null)
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
+
+  const send = async event => {
+    event?.preventDefault()
+    const question = draft.trim()
+    if (!question || thinking) return
+    // The history sent to the server is the conversation as it stood before this question.
+    const history = messages
+    setMessages(current => [...current, { from: 'user', text: question }])
+    setDraft(''); setThinking(true)
+    try {
+      const response = await fetch('/api/me/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: question, history }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      setMessages(current => [...current, {
+        from: 'leo',
+        text: payload.reply || payload.error || 'Something went wrong on my side.',
+        offline: payload.source?.kind === 'rules',
+      }])
+    } catch {
+      setMessages(current => [...current, { from: 'leo', text: 'I can\u2019t reach the server right now.', offline: true }])
+    } finally { setThinking(false) }
+  }
+
+  const quick = hasPlan
+    ? ['What should I do this week?', 'Why is this task first?', 'Tell me about my universities']
+    : ['How do I start?', 'What is the Decision Map for?']
+
+  return <aside className={`chat ${open ? 'open' : ''}`} aria-hidden={!open}>
+    <div className="chat-head">
+      <div><img src={mascot} alt=""/><span><b>Leo AI</b><small>Here to guide you</small></span></div>
+      <button onClick={onClose} aria-label="Close">×</button>
+    </div>
+    <div className="chat-messages" aria-live="polite">
+      {messages.map((message, index) => <p className={`${message.from} ${message.offline ? 'offline' : ''}`} key={index}>{message.text}</p>)}
+      {thinking && <p className="leo thinking"><i/><i/><i/></p>}
+      <div ref={endRef}/>
+    </div>
+    <div className="chat-quick">{quick.map(text => <button key={text} onClick={() => setDraft(text)} disabled={thinking}>{text}</button>)}</div>
+    <form onSubmit={send}>
+      <input value={draft} onChange={event => setDraft(event.target.value)}
+        placeholder={thinking ? 'Leo is thinking\u2026' : 'Ask Leo anything\u2026'} disabled={thinking}/>
+      <button aria-label="Send message" disabled={thinking || !draft.trim()}>{icons.arrow}</button>
+    </form>
+  </aside>
+}
 
 export default function App() {
   // `undefined` means "still asking the server"; `null` means "definitely signed out".
@@ -148,7 +201,11 @@ export default function App() {
   const [page, setPage] = useState('home'); const [chatOpen, setChatOpen] = useState(false)
   // `undefined` while loading, `null` when this account has not been through onboarding.
   const [profile, setProfile] = useState(undefined)
-  const [admissionPlan, setAdmissionPlan] = useState(cloneAdmissionPlan)
+  // `null` until this account's own plan is loaded or built. The seed plan is a demo for
+  // Italy/Economics: showing it to someone who onboarded for Hungary/Medicine tells them
+  // the app knows things about them that it does not.
+  const [admissionPlan, setAdmissionPlan] = useState(null)
+  const [building, setBuilding] = useState(false)
   // Which task both pages are pointing at. One value, two views.
   const [focusTask, setFocusTask] = useState(null)
 
@@ -158,14 +215,36 @@ export default function App() {
     Promise.all([
       fetch('/api/me/profile').then(response => response.json()).catch(() => ({ profile: null })),
       fetch('/api/me/plan').then(response => response.json()).catch(() => ({ plan: null })),
-    ]).then(([profilePayload, planPayload]) => {
+    ]).then(async ([profilePayload, planPayload]) => {
       if (!alive) return
-      setProfile(profilePayload.profile ?? null)
-      // A stored plan wins over the seed; a new account keeps the seed until it generates one.
-      if (planPayload.plan) setAdmissionPlan(planPayload.plan)
+      const loaded = profilePayload.profile ?? null
+      setProfile(loaded)
+      if (planPayload.plan) { setAdmissionPlan(planPayload.plan); return }
+      // Onboarding is finished but nothing has been generated yet: build it now rather than
+      // leaving the pages showing a stranger's plan until someone finds the Generate button.
+      if (loaded) await buildFirstPlan(loaded, () => alive)
     })
     return () => { alive = false }
   }, [user])
+
+  const defaultObjective = item =>
+    `Find the best ${item.field} ${item.degree} programmes in ${item.destinationLabel} for ${item.intake} and build my application plan`
+
+  const buildFirstPlan = async (item, stillHere = () => true) => {
+    setBuilding(true)
+    try {
+      const response = await fetch('/api/me/plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objective: defaultObjective(item) }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (stillHere() && payload.plan) {
+        setAdmissionPlan(payload.plan)
+        setFocusTask(payload.plan.tasks[0]?.id ?? null)
+      }
+    } catch { /* the pages show their empty state; the Generate button is still there */ }
+    finally { if (stillHere()) setBuilding(false) }
+  }
 
   const handleGeneratePlan = async objective => {
     const response = await fetch('/api/me/plan', {
@@ -179,16 +258,17 @@ export default function App() {
   }
   const signOut = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    setUser(null); setPage('home'); setProfile(undefined); setAdmissionPlan(cloneAdmissionPlan())
+    setUser(null); setPage('home'); setProfile(undefined); setAdmissionPlan(null)
   }
 
   if (user === undefined) return <div className="auth-booting"><span className="map-spinner"/>Checking your session…</div>
   if (user === null) return <Auth onSignedIn={setUser}/>
   if (profile === undefined) return <div className="auth-booting"><span className="map-spinner"/>Loading your path…</div>
-  if (profile === null) return <Onboarding user={user} onDone={setProfile}/>
+  if (profile === null) return <Onboarding user={user} onDone={async item => { setProfile(item); await buildFirstPlan(item) }}/>
+  if (building || !admissionPlan) return <div className="auth-booting"><span className="map-spinner"/>Building your path from your answers…</div>
 
   const firstName = (user.displayName || user.username).trim().split(/\s+/)[0]
   const nav = [{label:'Home',icon:'home',id:'home'}, {label:'My path',icon:'path',id:'roadmap'}, {label:'Decision map',icon:'search',id:'intel'}, {label:'Universities',icon:'uni',id:'universities'}, {label:'Friends',icon:'friends',id:'friends'}]
   const body = page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} setPage={setPage} focusTask={focusTask} setFocusTask={setFocusTask}/> : page === 'profile' ? <Profile user={user} profile={profile}/> : page === 'intel' ? <OSINT setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} profile={profile} focusNode={focusTask} setFocusNode={setFocusTask}/> : page === 'universities' ? <Universities/> : <Friends/>
-  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => setPage(item.id)}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{(user.displayName || user.username).trim().charAt(0).toUpperCase()}</span><span><b>{user.displayName || user.username}</b><small>My profile</small></span><i>{icons.chevron}</i></button><button className="sign-out" onClick={signOut}>Sign out</button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ 1,240 XP</button><button className="bell" aria-label="Notifications">{icons.bell}<i/></button><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header>{body}<button className="leo-fab" onClick={() => setChatOpen(true)} aria-label="Open Leo AI"><img src={mascot} alt=""/><span>Ask Leo <b>✦</b></span></button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label="Close Leo AI"/>}</div>
+  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => setPage(item.id)}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{(user.displayName || user.username).trim().charAt(0).toUpperCase()}</span><span><b>{user.displayName || user.username}</b><small>My profile</small></span><i>{icons.chevron}</i></button><button className="sign-out" onClick={signOut}>Sign out</button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ 1,240 XP</button><button className="bell" aria-label="Notifications">{icons.bell}<i/></button><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header>{body}<button className="leo-fab" onClick={() => setChatOpen(true)} aria-label="Open Leo AI"><img src={mascot} alt=""/><span>Ask Leo <b>✦</b></span></button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label="Close Leo AI"/>}</div>
 }

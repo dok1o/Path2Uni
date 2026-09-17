@@ -70,6 +70,21 @@ export function buildPrompt({ context, shortlist }) {
   return lines.join('\n')
 }
 
+/**
+ * The shared call: walks the model cascade and returns the first answer. Every feature that
+ * talks to Gemini goes through here, so the cooldown and the fallback order are defined once.
+ *
+ * @returns {{text: string, model: string, usage: object}}
+ */
+export async function callGemini({ apiKey, system, contents, generationConfig, signal }) {
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents,
+    generationConfig,
+  })
+  return dispatch({ apiKey, body, signal })
+}
+
 /** Returns { plan, model, usage } or throws with .attempts describing every failure. */
 export async function generateWithGemini({ apiKey, context, shortlist, signal }) {
   const body = JSON.stringify({
@@ -77,7 +92,11 @@ export async function generateWithGemini({ apiKey, context, shortlist, signal })
     contents: [{ role: 'user', parts: [{ text: buildPrompt({ context, shortlist }) }] }],
     generationConfig: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, temperature: 0.4 },
   })
+  const { text, model, usage } = await dispatch({ apiKey, body, signal })
+  return { plan: JSON.parse(text), model, usage }
+}
 
+async function dispatch({ apiKey, body, signal }) {
   const attempts = []
   const order = [...MODELS.filter(available), ...MODELS.filter(model => !available(model))]
   for (const model of order) {
@@ -97,7 +116,7 @@ export async function generateWithGemini({ apiKey, context, shortlist, signal })
       const text = payload.candidates?.[0]?.content?.parts?.[0]?.text
       if (!text) { attempts.push({ model, status: 200, detail: 'empty candidate' }); continue }
       return {
-        plan: JSON.parse(text),
+        text,
         model,
         usage: {
           promptTokens: payload.usageMetadata?.promptTokenCount ?? null,

@@ -8,6 +8,7 @@ import {
   getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan,
   destinationOptions, fieldOptions, levelOptions, englishLevels,
 } from './profiles.js'
+import { askLeo } from './chat.js'
 import { buildGraph } from '../src/services/planShape.js'
 import { readObjective } from '../src/services/planContext.js'
 
@@ -110,6 +111,18 @@ export async function route(request) {
       const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
       await savePlan(me.id, { plan, objective })
       return json(200, { plan: { ...plan, objective } })
+    }
+
+    if (path === '/api/me/chat' && method === 'POST') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      const stored = await getCurrentPlan(me.id)
+      const result = await askLeo({
+        apiKey, profile, plan: stored,
+        history: parsed.history, message: parsed.message,
+      })
+      if (result.error) return json(result.status, { error: result.error })
+      return json(200, { reply: result.reply, source: result.source })
     }
 
     if (path === '/api/options' && method === 'GET') {

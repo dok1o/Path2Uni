@@ -1,0 +1,4 @@
+.env
+.obsidian/workspace*.json
+*.log
+

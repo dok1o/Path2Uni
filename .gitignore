@@ -1,4 +1,6 @@
 .env
 .obsidian/workspace*.json
 *.log
+node_modules/
+dist/
 

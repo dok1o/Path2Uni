@@ -4,6 +4,8 @@ import './styles.css'
 import './game.css'
 import './explorer.css'
 import './osint.css'
+import './premium.css'
+import './social.css'
 import App from './App'
 
 createRoot(document.getElementById('root')).render(

@@ -6,6 +6,7 @@ import mascot from './assets/leo-mascot.png'
 import { admissionProfile, cloneAdmissionPlan } from './data/admissionGraph.js'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
 import { generateAdmissionPlan } from './services/roadmapAI.js'
+import { loadApplicantProfile, saveApplicantTests } from './services/applicantProfile.js'
 
 const icons = {
   home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '♢',
@@ -360,13 +361,14 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
   </main>
 }
 
-function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout }) {
+function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, applicantProfile, onOpenExamStep }) {
   const [tab, setTab] = useState('overview')
-  const sections = [['About you','Personal details, education and language'],['Your goals','Country, programme and intended start date'],['Your strengths','Activities, awards and portfolio']]
+  const testSummary = applicantProfile.tests?.length ? `${applicantProfile.tests.length} test${applicantProfile.tests.length === 1 ? '' : 's'} added` : 'Add completed and planned exams'
+  const sections = [['About you','Personal details, education and language'],['Your goals','Country, programme and intended start date'],['Test results',testSummary],['Your strengths','Activities, awards and portfolio']]
   const tabs = [{id:'overview',label:'Overview'}, {id:'saved',label:'Saved',count:favorites.length}, {id:'friends',label:'Friends',count:friends.length}]
 
   return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">M</div><div><span className="eyebrow purple">MY PROFILE</span><h1>Mila Akhmetova</h1><p>Italy · Bachelor’s · 2027 intake</p></div><div className="profile-actions"><button className="button soft">Edit profile <span>✎</span></button><button className="logout-button" onClick={onLogout}>Log out ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{item.label}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
-    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">PROFILE COMPLETION</span><h2>68% complete</h2><p>Just a few details left before Leo can tailor every recommendation.</p></div><div className="progress-circle"><b>68%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section[0]}><span className="profile-number">0{index + 1}</span><span><h3>{section[0]}</h3><p>{section[1]}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">NEXT BEST STEP</span><h3>Tell us about your academic results</h3><p>It takes about 3 minutes and improves your university matches.</p><button className="button dark">Complete now <span>{icons.arrow}</span></button></aside></section></>}
+    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">PROFILE COMPLETION</span><h2>68% complete</h2><p>Just a few details left before Leo can tailor every recommendation.</p></div><div className="progress-circle"><b>68%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section[0]} onClick={section[0] === 'Test results' ? onOpenExamStep : undefined}><span className="profile-number">0{index + 1}</span><span><h3>{section[0]}</h3><p>{section[1]}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">NEXT BEST STEP</span><h3>Tell us about your test results</h3><p>It takes about 3 minutes and improves your university matches.</p><button className="button dark" onClick={onOpenExamStep}>Complete now <span>{icons.arrow}</span></button></aside></section></>}
       {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">YOUR SHORTLIST</span><h2>Universities worth coming back to.</h2><p>Every gold star from the country map is collected here.</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{university.city}, {university.country}</small><h3>{university.name}</h3><p>{university.match} · English programmes</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>View on map {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>No saved universities yet</h3><p>Explore a country and tap a star on any university you want to compare later.</p><button className="button primary" onClick={() => setPage('universities')}>Explore universities <span>{icons.arrow}</span></button></div>}</section>}
       {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">YOUR ADMISSION CREW</span><h2>See where your friends are heading.</h2><p>Their university choices also appear directly on the city cards.</p></div><button className="button soft" onClick={() => setPage('friends')}>+ Add by nickname</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <>Chose <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className="high-five">✋ High-five</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>
   </main>
@@ -384,6 +386,50 @@ function Friends({ friends, onAddFriend }) {
   return <main className="page friends-page"><section className="friends-hero-grid"><section className="list-hero"><span className="eyebrow purple">YOUR CREW</span><h1>Progress is better<br/>together.</h1><p>Find a Path2Uni student by nickname and add them to your admission crew.</p></section><form className="add-friend-card" onSubmit={submit}><span className="add-friend-icon">＋</span><div><span className="eyebrow purple">ADD A FRIEND</span><h2>Find by nickname</h2></div><label><span>@</span><input value={nickname} onChange={event => { setNickname(event.target.value); setNotice(null) }} placeholder="nickname" aria-label="Friend nickname"/><button type="submit">Add friend</button></label>{notice && <p className={notice.ok ? 'success' : 'error'}>{notice.message}</p>}<small>Try a unique nickname, for example <b>@alex.abroad</b>.</small></form></section><div className="friend-list">{friends.map(friend => <article key={friend.id}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <><span className="inline-friend-star">★</span> Chose {friend.university}</>} · today</p></div><button className="high-five">✋ High-five</button></article>)}</div></main>
 }
 
+const examCatalog = [
+  { code:'SAT', name:'SAT', range:'400–1600' },
+  { code:'IELTS', name:'IELTS Academic', range:'0–9' },
+  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140' },
+  { code:'DET', name:'Duolingo English Test', range:'10–160' },
+  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120' },
+  { code:'ACT', name:'ACT', range:'1–36' },
+  { code:'CAMBRIDGE', name:'Cambridge English', range:'Score' },
+  { code:'IB', name:'IB Diploma', range:'0–45' },
+  { code:'AP', name:'AP Exams', range:'1–5' },
+  { code:'A_LEVEL', name:'A-level', range:'Grade' },
+  { code:'OTHER', name:'Other exam', range:'Result' },
+]
+
+function ExamResultsStep({ initialTests, onSave, onClose }) {
+  const [tests, setTests] = useState(() => examCatalog.map(exam => {
+    const saved = initialTests?.find(test => test.test_code === exam.code || test.code === exam.code)
+    return { ...exam, selected:Boolean(saved), status:saved?.status || 'completed', score:saved?.score ?? '', scoreText:saved?.score_text || '', date:saved?.test_date || saved?.planned_date || '' }
+  }))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const update = (code, changes) => setTests(current => current.map(test => test.code === code ? { ...test, ...changes } : test))
+  const submit = async event => {
+    event.preventDefault()
+    setSaving(true); setError('')
+    try {
+      await onSave(tests.filter(test => test.selected))
+      onClose()
+    } catch (saveError) {
+      setError(saveError.message || 'Could not save your test results.')
+    } finally { setSaving(false) }
+  }
+
+  return <div className="exam-step-backdrop"><motion.form className="exam-step" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="exam-step-title" initial={{opacity:0,y:24,scale:.98}} animate={{opacity:1,y:0,scale:1}}>
+    <header><div><span className="eyebrow purple">PROFILE · TEST RESULTS</span><h1 id="exam-step-title">Which exams have you taken?</h1><p>Add completed tests or exams you are planning. You can update them later.</p></div><button type="button" className="exam-close" onClick={onClose} aria-label="Close">×</button></header>
+    <div className="exam-list">{tests.map(test => <article key={test.code} className={test.selected ? 'selected' : ''}>
+      <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{test.range}</small></span></label>
+      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" step="any" value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'completed' ? 'Test date' : 'Planned date'}</span><input type="date" value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
+    </article>)}</div>
+    {error && <p className="exam-error">{error}</p>}
+    <footer><small>These results will be used to match admission requirements.</small><button className="button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save and continue'} <span>{icons.arrow}</span></button></footer>
+  </motion.form></div>
+}
+
 function LoginScreen({ onLogin }) {
   return <main className="login-screen"><motion.section className="login-card" initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}}><div className="login-brand"><span className="brand-mark">P</span><b>path<span>2</span>uni</b></div><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">SEE YOU SOON, MILA</span><h1>You’ve logged out.</h1><p>Your roadmap, saved universities and friends are still safely stored on this device.</p><button className="button primary" onClick={onLogin}>Log back in <span>{icons.arrow}</span></button></motion.section></main>
 }
@@ -398,6 +444,8 @@ export default function App() {
   const [page, setPage] = useState('home'); const [chatOpen, setChatOpen] = useState(false)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
   const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('path2uni:loggedIn') !== 'false')
+  const [applicantProfile, setApplicantProfile] = useState(loadApplicantProfile)
+  const [examStepOpen, setExamStepOpen] = useState(false)
   const [admissionPlan, setAdmissionPlan] = useState(cloneAdmissionPlan)
   const [favorites, setFavorites] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem('path2uni:favorites')); return Array.isArray(saved) ? saved : [] } catch { return [] }
@@ -425,10 +473,11 @@ export default function App() {
   }
   const openOSINT = nodeId => { setFocusedNodeId(nodeId); setPage('intel') }
   const logOut = () => { setChatOpen(false); setLoggedIn(false) }
-  const logIn = () => { setLoggedIn(true); setPage('home') }
+  const logIn = () => { setLoggedIn(true); setPage('home'); setExamStepOpen(true) }
+  const saveTests = async tests => setApplicantProfile(await saveApplicantTests(tests))
   const handleGeneratePlan = async objective => setAdmissionPlan(await generateAdmissionPlan({ profile:admissionProfile, objective }))
   const nav = [{label:'Home',icon:'home',id:'home'}, {label:'My path',icon:'path',id:'roadmap'}, {label:'Decision map',icon:'search',id:'intel'}, {label:'Universities',icon:'uni',id:'universities'}, {label:'Friends',icon:'friends',id:'friends'}]
   if (!loggedIn) return <LoginScreen onLogin={logIn}/>
-  const body = page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
-  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">M</span><span><b>Mila A.</b><small>My profile</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ 1,240 XP</button><button className="bell" aria-label="Notifications">{icons.bell}<i/></button><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><Footer/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label="Open Leo AI"><img src={mascot} alt=""/><span>Ask Leo <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label="Close Leo AI"/>}</div>
+  const body = page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
+  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">M</span><span><b>Mila A.</b><small>My profile</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ 1,240 XP</button><button className="bell" aria-label="Notifications">{icons.bell}<i/></button><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><Footer/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label="Open Leo AI"><img src={mascot} alt=""/><span>Ask Leo <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label="Close Leo AI"/>}{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>
 }

@@ -40,18 +40,57 @@ export const fields = {
 
 export const degrees = { bachelor: 'Bachelor', master: 'Master', phd: 'PhD' }
 
+// The objective is free text and the interface is in three languages, so someone typing
+// "хочу в Германию на программиста" must be understood as well as the English default.
+// These are aliases onto the tables above, never new destinations or fields.
+const ALIASES = {
+  destinations: {
+    герман: 'germany', германи: 'germany', германия: 'germany',
+    нидерланд: 'netherlands', голланд: 'netherlands', нидерланды: 'netherlands',
+    итали: 'italy', швейцар: 'switzerland', венгри: 'hungary', мадьяр: 'hungary',
+    британ: 'united kingdom', англи: 'united kingdom', сша: 'united states', америк: 'united states',
+    кита: 'china', оаэ: 'united arab emirates', эмират: 'united arab emirates', малайз: 'malaysia',
+    франц: 'france', испан: 'spain', польш: 'poland',
+    // қазақша
+    германия: 'germany', нидерланд_kk: 'netherlands', италия: 'italy', швейцария: 'switzerland',
+    венгрия: 'hungary', ұлыбритания: 'united kingdom', ақш: 'united states', қытай: 'china',
+    бае: 'united arab emirates', малайзия: 'malaysia',
+  },
+  fields: {
+    программ: 'computer', информатик: 'computer', компьютер: 'computer', айти: 'computer', 'ит ': 'computer',
+    данны: 'data', дата: 'data',
+    инженер: 'engineering', техник: 'engineering',
+    экономик: 'economics', бизнес: 'business', менеджмент: 'management', управлени: 'management',
+    дизайн: 'design', архитектур: 'architecture',
+    медицин: 'medicine', врач: 'medicine', доктор: 'medicine',
+    юри: 'law', право: 'law', психолог: 'psychology',
+    // қазақша
+    бағдарламалау: 'computer', ақпарат: 'computer', инженерия: 'engineering',
+    экономика: 'economics', дизайны: 'design', сәулет: 'architecture', медицина: 'medicine',
+    құқық: 'law', психология: 'psychology', дерек: 'data',
+  },
+}
+
+/** The label a profile stores, back to the catalogue slug the shortlist filters on. */
+const tagForLabel = label => Object.values(fields).find(item => item.label === label)?.tag ?? null
+
 // A C1 speaker already clears most English-taught entry bars; below that the certificate is a real task.
 const testExempt = ['c1', 'c2', 'native']
 
-const match = (text, table) => Object.keys(table).find(key => text.includes(key))
+const match = (text, table, aliases) => {
+  const direct = Object.keys(table).find(key => text.includes(key))
+  if (direct) return direct
+  const alias = Object.keys(aliases ?? {}).find(key => text.includes(key))
+  return alias ? aliases[alias] : undefined
+}
 
 export function readObjective(objective, profile = {}) {
   const text = String(objective || '').toLowerCase()
   // Kept apart on purpose: only what the objective itself names counts towards `matched`.
-  const statedKey = match(text, destinations)
+  const statedKey = match(text, destinations, ALIASES.destinations)
   const destinationKey = statedKey ?? String(profile?.destination || '').toLowerCase()
   const destination = destinations[destinationKey] ?? destinations.italy
-  const fieldKey = match(text, fields)
+  const fieldKey = match(text, fields, ALIASES.fields)
   const degreeKey = match(text, degrees)
   const year = (text.match(/20\d{2}/) ?? [])[0]
   const languages = Array.isArray(profile?.languages) ? profile.languages : []
@@ -60,7 +99,10 @@ export function readObjective(objective, profile = {}) {
   return {
     destination,
     field: fieldKey ? fields[fieldKey].label : profile?.field,
-    fieldTag: fieldKey ? fields[fieldKey].tag : null,
+    // The tag has to inherit too. It used to stay null whenever the objective did not name a
+    // field in English, which silently turned the shortlist's hard field filter off and put
+    // any university in the country into the prompt — the "it just lists names" complaint.
+    fieldTag: fieldKey ? fields[fieldKey].tag : tagForLabel(profile?.field),
     degree: degreeKey ? degrees[degreeKey] : profile?.degree,
     intake: year ?? profile?.intake,
     englishLevel: level,

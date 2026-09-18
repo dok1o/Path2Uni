@@ -19,7 +19,7 @@ function planApi() {
       // Mounted without a path prefix on purpose: Connect strips the prefix from request.url
       // when you mount on one, so the check below would never match.
       server.middlewares.use((request, response, next) => {
-        const path = new URL(request.url, 'http://localhost').pathname
+        const { pathname: path, searchParams: query } = new URL(request.url, 'http://localhost')
         if (!path.startsWith('/api/')) return next()
         let body = ''
         request.on('data', chunk => { body += chunk })
@@ -27,7 +27,7 @@ function planApi() {
           // Imported lazily so edits to the router are picked up without restarting Vite.
           const { route } = await server.ssrLoadModule('/server/routes.js')
           const result = await route({
-            method: request.method, path, body,
+            method: request.method, path, query, body,
             cookie: request.headers.cookie, userAgent: request.headers['user-agent'], apiKey,
             secure: false, // the dev server is plain http; a Secure cookie would be discarded
           }).catch(error => ({ status: 500, body: { error: String(error.message) } }))

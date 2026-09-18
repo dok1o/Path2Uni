@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import mascot from './assets/leo-mascot.png'
+import { useT, LanguageSwitch } from './i18n.jsx'
 
 const YEARS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() + index)
 
 const STEPS = [
   // The only multi-answer step: most applicants are choosing between countries, not from one.
   // Its limit comes from the server with the options, so the two can never drift apart.
-  { key: 'destinations', multi: true, title: 'Where do you want to study?', lead: max => `Pick up to ${max}. Choosing more than one is normal — we will show you universities in each and let you compare them.` },
+  { key: 'destinations', multi: true, title: 'Where do you want to study?', lead: 'Pick up to {max}. Choosing more than one is normal — we will show you universities in each and let you compare them.' },
   { key: 'degree', title: 'Which degree are you after?', lead: 'This decides which programmes we look at.' },
   { key: 'field', title: 'What do you want to study?', lead: 'Pick the closest one. Your shortlist comes from this.' },
   { key: 'intake', title: 'When do you want to start?', lead: 'The year you plan to begin your studies.' },
@@ -20,6 +21,7 @@ const STEPS = [
  * a fresh account.
  */
 export default function Onboarding({ user, initial, onDone, onCancel }) {
+  const { t } = useT()
   const [options, setOptions] = useState(null)
   const [answers, setAnswers] = useState(initial
     ? {
@@ -33,10 +35,10 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
 
   useEffect(() => {
     fetch('/api/options').then(response => response.json()).then(setOptions)
-      .catch(() => setError('Could not load the options. Is the server running?'))
+      .catch(() => setError(t('Could not load the options. Is the server running?')))
   }, [])
 
-  if (!options) return <div className="auth-booting"><span className="map-spinner"/>Getting things ready…</div>
+  if (!options) return <div className="auth-booting"><span className="map-spinner"/>{t('Getting things ready…')}</div>
 
   const maxDestinations = options.maxDestinations ?? 3
   const current = STEPS[step]
@@ -58,7 +60,7 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
     if (current.multi) {
       const list = chosen ?? []
       if (!list.includes(value) && list.length >= maxDestinations) {
-        setError(`${maxDestinations} countries is the limit — past that it stops being a comparison.`)
+        setError(t('{max} countries is the limit — past that it stops being a comparison.', { max: maxDestinations }))
         return
       }
       setAnswers({ ...answers, [current.key]: list.includes(value) ? list.filter(item => item !== value) : [...list, value] })
@@ -75,7 +77,7 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
   const complete = STEPS.every(item => (item.multi ? (answers[item.key] ?? []).length : answers[item.key] != null))
 
   const advance = () => {
-    if (current.multi && !(chosen ?? []).length) { setError('Pick at least one country to aim for.'); return }
+    if (current.multi && !(chosen ?? []).length) { setError(t('Pick at least one country to aim for.')); return }
     setError(null)
     if (step < STEPS.length - 1) setStep(step + 1); else submit(answers)
   }
@@ -91,22 +93,23 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
         // The server validates independently; show the first thing it objected to.
-        setError(Object.values(payload.errors ?? {})[0] || payload.error || 'Something went wrong')
+        setError(t(Object.values(payload.errors ?? {})[0] || payload.error || 'Something went wrong', payload.vars))
         return
       }
       onDone(payload.profile)
     } catch {
-      setError('Cannot reach the server.')
+      setError(t('Cannot reach the server.'))
     } finally { setBusy(false) }
   }
 
   return <div className="onboarding">
+    <LanguageSwitch compact/>
     <header className="onboarding-head">
-      <img src={mascot} alt="Leo, the Path2Uni mascot"/>
+      <img src={mascot} alt={t('Leo, the Path2Uni mascot')}/>
       <div>
-        <span className="eyebrow purple">{initial ? 'EDIT YOUR ANSWERS' : `HI ${(user.displayName || user.username).split(/\s+/)[0].toUpperCase()}`}</span>
-        <h1>{current.title}</h1>
-        <p>{typeof current.lead === 'function' ? current.lead(maxDestinations) : current.lead}</p>
+        <span className="eyebrow purple">{initial ? t('EDIT YOUR ANSWERS') : t('HI {name}', { name: (user.displayName || user.username).split(/\s+/)[0].toUpperCase() })}</span>
+        <h1>{t(current.title)}</h1>
+        <p>{t(current.lead, { max: maxDestinations })}</p>
       </div>
     </header>
 
@@ -117,7 +120,7 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
         {STEPS.map((item, index) => <button key={item.key}
           className={(item.multi ? (answers[item.key] ?? []).length : answers[item.key] != null) ? 'done' : ''}
           onClick={() => { setError(null); setStep(index) }} disabled={busy}
-          aria-current={index === step} aria-label={item.title}/>)}
+          aria-current={index === step} aria-label={t(item.title)}/>)}
       </nav>
       : <div className="onboarding-progress" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={STEPS.length}>
         {STEPS.map((item, index) => <i key={item.key} className={index <= step ? 'done' : ''}/>)}
@@ -129,21 +132,21 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
         aria-pressed={current.multi ? isChosen(choice.value) : undefined}
         onClick={() => pick(choice.value)}>
         {current.multi && isChosen(choice.value) && <i className="choice-order">{(chosen ?? []).indexOf(choice.value) + 1}</i>}
-        {choice.label}
+        {t(choice.label)}
       </button>)}
     </div>
 
     {(current.multi || initial) && <div className="onboarding-continue">
       <span>{current.multi
         ? (chosen ?? []).length
-          ? `${(chosen ?? []).length} chosen — the first one is where your roadmap starts`
-          : 'Nothing chosen yet'
-        : 'Saving rebuilds your plan and your matches.'}</span>
+          ? t('{count} chosen — the first one is where your roadmap starts', { count: (chosen ?? []).length })
+          : t('Nothing chosen yet')
+        : t('Saving rebuilds your plan and your matches.')}</span>
       <div className="onboarding-continue-buttons">
         {step < STEPS.length - 1 && <button className="button soft" onClick={advance}
-          disabled={busy || (current.multi && !(chosen ?? []).length)}>Next <span>→</span></button>}
+          disabled={busy || (current.multi && !(chosen ?? []).length)}>{t('Next')} <span>→</span></button>}
         {initial && complete && <button className="button primary" onClick={() => submit(answers)} disabled={busy}>
-          {busy ? 'Saving…' : 'Save changes'}
+          {busy ? t('Saving…') : t('Save changes')}
         </button>}
       </div>
     </div>}
@@ -152,8 +155,8 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
 
     <footer className="onboarding-foot">
       <button className="auth-swap" onClick={() => (step === 0 ? onCancel?.() : setStep(step - 1))}
-        disabled={busy || (step === 0 && !onCancel)}>← {step === 0 && onCancel ? 'Cancel' : 'Back'}</button>
-      <span>{busy ? 'Saving…' : `Step ${step + 1} of ${STEPS.length}`}</span>
+        disabled={busy || (step === 0 && !onCancel)}>← {step === 0 && onCancel ? t('Cancel') : t('Back')}</button>
+      <span>{busy ? t('Saving…') : t('Step {step} of {total}', { step: step + 1, total: STEPS.length })}</span>
     </footer>
   </div>
 }

@@ -7,10 +7,14 @@ import cityFallback from './assets/cities/city-fallback.jpg'
 import Auth from './Auth.jsx'
 import Onboarding from './Onboarding.jsx'
 import Advisor, { Comparison } from './Advisor.jsx'
+import StreakWidget, { StreakCelebration } from './StreakWidget.jsx'
+import SiteFooter from './SiteFooter.jsx'
+import { useT, LanguageSwitch } from './i18n.jsx'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
+import { cityLife, loadCityLife } from './data/cityLife.js'
 import { loadApplicantProfile, saveApplicantTests } from './services/applicantProfile.js'
 const icons = {
-  home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '♢',
+  home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '◔',
   chevron: '›', check: '✓', lock: '•', arrow: '→', spark: '✦', book: '▤', target: '◎',
 }
 
@@ -101,18 +105,84 @@ const friendProfiles = [
   { id:'sofia', nickname:'@sofia.italia', name:'Sofia', initials:'S', className:'a4', university:'Sapienza University' },
 ]
 
-function NavItem({ item, active, onClick }) {
-  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}><span>{icons[item.icon]}</span>{item.label}</button>
+const NOTICE_MARK = { urgent: '!', soon: '◷', info: '·' }
+
+/**
+ * The bell. It only ever counts things the applicant can act on today — an `info` notice is
+ * shown but never badged, because a permanent red dot teaches people to ignore red dots.
+ */
+function Notices({ onGo }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const [state, setState] = useState({ notices: [], unread: 0 })
+  const box = useRef(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = () => fetch('/api/me/notices')
+      .then(response => (response.ok ? response.json() : null))
+      .then(payload => { if (alive && payload) setState(payload) })
+      .catch(() => {})
+    load()
+    // Nothing here changes by the second; a slow poll keeps it fresh across a long session.
+    const timer = window.setInterval(load, 120_000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const close = event => { if (!box.current?.contains(event.target)) setOpen(false) }
+    const escape = event => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape) }
+  }, [open])
+
+  return <div className="notices" ref={box}>
+    <button className="bell" onClick={() => setOpen(value => !value)} aria-expanded={open}
+      aria-label={t('{count} things need you', { count: state.unread })}>
+      {icons.bell}{state.unread > 0 && <i>{state.unread}</i>}
+    </button>
+    {open && <section className="notices-panel" role="dialog" aria-label={t('Notifications')}>
+      <header><b>{t('Notifications')}</b><small>{t('Built from dates you entered and your own progress.')}</small></header>
+      {state.notices.length ? <div className="notices-list">{state.notices.map(notice =>
+        <button key={notice.key} className={`notice ${notice.tone}`} onClick={() => { setOpen(false); onGo(notice.page) }}>
+          <i>{NOTICE_MARK[notice.tone]}</i>
+          <span>
+            <b>{t(notice.title, notice.vars)}</b>
+            <small>{t(notice.detail, notice.detailVars)}</small>
+            {notice.evidence === 'demo' && <em className="demo-badge compact"><i>!</i>{t('demo')}</em>}
+          </span>
+        </button>)}</div>
+        : <p className="notices-empty">{t('Nothing needs you right now.')}</p>}
+      <footer>{t('We do not hold verified application deadlines, so we never invent one to remind you about.')}</footer>
+    </section>}
+  </div>
 }
 
-function GamePath({ setChatOpen, plan, onOpenOSINT, onTaskDone }) {
+function NavItem({ item, active, onClick }) {
+  const { t } = useT()
+  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}><span>{icons[item.icon]}</span>{t(item.label)}</button>
+}
+
+// A stage's reward split across its quests without creating or losing XP to rounding, the same
+// way server/activity.js does it — 100 XP over 3 quests is 34 + 33 + 33.
+const xpForQuest = (total, count, index) =>
+  count < 1 ? 0 : Math.floor((Number(total) || 0) / count) + (index < (Number(total) || 0) % count ? 1 : 0)
+
+function GamePath({ setChatOpen, plan, onOpenOSINT, onTaskDone, onCompleteQuest, activity }) {
+  const { t, n } = useT()
   const [selected, setSelected] = useState(1)
   const levels = plan.tasks.map((task,index) => ({ ...task, id:index + 1, side:index % 2 ? 'right' : 'left', sub:task.due }))
   const doneCount = levels.filter(level => level.state === 'done').length
-  const earned = levels.filter(level => level.state === 'done').reduce((sum, level) => sum + (level.xp ?? 0), 0)
+  // Earned XP is whatever the server counted, so ticking one quest of three shows a third of
+  // the stage rather than nothing until the whole stage is finished.
+  const earned = activity?.xp?.earned ?? levels.filter(level => level.state === 'done').reduce((sum, level) => sum + (level.xp ?? 0), 0)
   const progress = levels.length ? doneCount / levels.length * 100 : 0
   const active = levels.find(level => level.id === selected) ?? levels[0]
-  return <main className="page game-page"><section className="game-head"><div><span className="eyebrow purple">MY PATH · AI-GENERATED</span><h1>Your next chapter<br/>starts here.</h1><p>The task order comes from your profile, verified OSINT research and admission goals.</p><div className="ai-task-types">{['research','documents','application'].map(type => <span key={type}><i><TaskIcon type={type}/></i>{type}</span>)}</div></div><button className="game-leo-tip" onClick={() => setChatOpen(true)}><img src={mascot} alt="Leo mascot"/><span><b>Leo’s hint</b><small>Tap a path point to see why AI created it.</small></span><i>{icons.chevron}</i></button></section><section className="game-meta"><div><span className="game-stat-icon">✦</span><b>{earned.toLocaleString('en-US')}</b><small>XP earned</small></div><div><span className="game-stat-icon fire">♨</span><b>{Math.round(progress)}%</b><small>of your plan</small></div><div><span className="game-stat-icon gem">◆</span><b>{levels.length}</b><small>AI tasks</small></div><div><span className="game-stat-icon energy">⚡</span><b>{doneCount} / {levels.length}</b><small>tasks done</small></div></section><section className="game-map-shell"><div className="game-map-title"><span>AI ROADMAP · CONNECTED TO OSINT</span><h2>Research to application</h2><small>Tap any point to open its evidence graph</small></div><div className="game-map"><svg className="game-line" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M29 17 C72 28 70 39 29 48 S28 68 70 80"/></svg>{levels.map((level,index) => <button key={level.id} style={{top:`${16 + index * 31}%`}} className={`game-level ${level.state} ${level.side} ${selected === level.id ? 'selected' : ''}`} onClick={() => { setSelected(level.id); onOpenOSINT(level.type) }}><span className="level-disc"><i><TaskIcon type={level.type}/></i><b>{level.id}</b></span><span className="level-label"><strong>{level.shortTitle}</strong><small>Open in OSINT graph →</small></span></button>)}<div className="path-reward reward-one">♜<small>+ 120 XP</small></div><div className="path-reward reward-two">✉<small>AI task</small></div></div><aside className="level-panel"><span className="panel-kicker">AI TASK · {active.id} OF {levels.length}</span><div className={`panel-task-icon ${active.type}`}><TaskIcon type={active.type}/></div><h2>{active.title}</h2><p>{active.description}</p><div className="level-quests">{active.subtasks.map((task,i) => <div key={task} className={active.state === 'current' && i === 0 ? 'quest complete' : 'quest'}><i>{active.state === 'current' && i === 0 ? '✓' : i + 1}</i><span>{task}</span>{i === 0 && <b>+{Math.round(active.xp/3)} XP</b>}</div>)}</div><div className="panel-actions"><button className={`button ${active.state === 'done' ? 'soft' : 'primary'}`} onClick={() => onTaskDone(active.position, active.state !== 'done')}>{active.state === 'done' ? 'Completed — undo' : 'Mark as done'} <span>{active.state === 'done' ? '↺' : '✓'}</span></button><button className="button soft" onClick={() => onOpenOSINT(active.type)}>Open evidence graph <span>{icons.arrow}</span></button></div></aside></section></main>
+  const completed = new Set(active.completedSubtasks ?? [])
+  const streak = activity?.streak?.current ?? 0
+  return <main className="page game-page"><section className="game-head"><div><span className="eyebrow purple">{t('MY PATH · AI-GENERATED')}</span><h1>{t('Your next chapter starts here.')}</h1><p>{t('The task order comes from your profile, verified sources and your admission goals.')}</p><div className="ai-task-types">{['research','documents','application'].map(type => <span key={type}><i><TaskIcon type={type}/></i>{t(type)}</span>)}</div></div><button className="game-leo-tip" onClick={() => setChatOpen(true)}><img src={mascot} alt="" /><span><b>{t('Leo’s hint')}</b><small>{t('Tap a path point to see why it was created.')}</small></span><i>{icons.chevron}</i></button></section><section className="game-meta"><div><span className="game-stat-icon">✦</span><b>{n(earned)}</b><small>{t('XP earned')}</small></div><div><span className="game-stat-icon fire">♨</span><b>{streak}</b><small>{t('day streak')}</small></div><div><span className="game-stat-icon">◉</span><b>{Math.round(progress)}%</b><small>{t('of your plan')}</small></div><div><span className="game-stat-icon gem">◆</span><b>{levels.length}</b><small>{t('AI tasks')}</small></div><div><span className="game-stat-icon energy">⚡</span><b>{doneCount} / {levels.length}</b><small>{t('tasks done')}</small></div></section><section className="game-map-shell"><div className="game-map-title"><span>{t('AI ROADMAP · CONNECTED TO SOURCES')}</span><h2>{t('Research to application')}</h2><small>{t('Tap any point to open its evidence graph')}</small></div><div className="game-map"><svg className="game-line" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M29 17 C72 28 70 39 29 48 S28 68 70 80"/></svg>{levels.map((level,index) => <button key={level.id} style={{top:`${16 + index * 31}%`}} className={`game-level ${level.state} ${level.side} ${selected === level.id ? 'selected' : ''}`} onClick={() => { setSelected(level.id); onOpenOSINT(level.type) }}><span className="level-disc"><i><TaskIcon type={level.type}/></i><b>{level.id}</b></span><span className="level-label"><strong>{level.shortTitle}</strong><small>{t('Open in the decision map')} →</small></span></button>)}<div className="path-reward reward-one">♜<small>+ {n(active.xp ?? 0)} XP</small></div><div className="path-reward reward-two">✉<small>{t('AI task')}</small></div></div><aside className="level-panel"><span className="panel-kicker">{t('AI TASK · {index} OF {total}', { index: active.id, total: levels.length })}</span><div className={`panel-task-icon ${active.type}`}><TaskIcon type={active.type}/></div><h2>{active.title}</h2><p>{active.description}</p><div className="level-quests">{active.subtasks.map((task,i) => { const isDone = completed.has(i); return <button type="button" key={task} className={`quest ${isDone ? 'complete' : ''}`} disabled={active.state === 'locked' || !active.taskId} onClick={() => onCompleteQuest(active.taskId, i, !isDone)}><i>{isDone ? '✓' : i + 1}</i><span>{task}</span><b>{isDone ? t('earned') : `+${xpForQuest(active.xp, active.subtasks.length, i)} XP`}</b></button> })}</div><div className="panel-actions"><button className={`button ${active.state === 'done' ? 'soft' : 'primary'}`} onClick={() => onTaskDone(active.position, active.state !== 'done')}>{t(active.state === 'done' ? 'Completed — undo' : 'Mark as done')} <span>{active.state === 'done' ? '↺' : '✓'}</span></button><button className="button soft" onClick={() => onOpenOSINT(active.type)}>{t('Open evidence graph')} <span>{icons.arrow}</span></button></div></aside></section></main>
 }
 
 // Everything on this card used to be a literal: a fixed Tuesday, an "Italian dream" for people
@@ -121,32 +191,35 @@ function GamePath({ setChatOpen, plan, onOpenOSINT, onTaskDone }) {
 const TODAY_FORMAT = { weekday: 'long', day: 'numeric', month: 'long' }
 
 function Greeting({ setChatOpen, setPage, name, plan, profile, tests }) {
-  const today = new Date().toLocaleDateString('en-GB', TODAY_FORMAT).toUpperCase()
+  const { t, locale } = useT()
+  const today = new Date().toLocaleDateString(locale, TODAY_FORMAT).toUpperCase()
   const current = plan?.tasks?.find(task => task.state === 'current') ?? plan?.tasks?.find(task => task.state !== 'done')
   const places = destinationLabels(profile)
-  const where = places.length > 1 ? `${places.slice(0, -1).join(', ')} or ${places[places.length - 1]}` : places[0]
+  const named = places.map(place => t(place))
+  const where = named.length > 1 ? t('{list} or {last}', { list: named.slice(0, -1).join(', '), last: named[named.length - 1] }) : named[0]
   const noExams = !tests?.length
   // The first thing actually missing, in the order it blocks the rest.
   const quest = noExams
-    ? { label: 'PROFILE · 3 MIN', title: 'Add your exam results', lead: 'Scores you already have change which universities we put in front of you.', go: () => setPage('profile') }
+    ? { label: t('PROFILE · 3 MIN'), title: t('Add your exam results'), lead: t('Scores you already have change which universities we put in front of you.'), go: () => setPage('profile') }
     : current
-      ? { label: `NEXT STEP · ${current.due}`, title: current.shortTitle, lead: current.subtasks[0] ?? current.description, go: () => setPage('roadmap') }
-      : { label: 'YOUR PLAN', title: 'Every task is done', lead: 'Open your path to review what you finished, or ask Leo what comes after.', go: () => setChatOpen(true) }
+      ? { label: `${t('NEXT STEP')} · ${t(current.due)}`, title: current.shortTitle, lead: current.subtasks[0] ?? current.description, go: () => setPage('roadmap') }
+      : { label: t('YOUR PLAN'), title: t('Every task is done'), lead: t('Open your path to review what you finished, or ask Leo what comes after.'), go: () => setChatOpen(true) }
   return <section className="greeting-card">
-    <div className="greeting-copy"><span className="eyebrow purple">{today}</span><h1>Good to see you, {name} <span>✦</span></h1><p>{current ? `One step today brings ${where} closer.` : `Your ${where} plan is complete — nice work.`}</p><div className="daily-action"><div className="action-icon">✉</div><div><small>{quest.label}</small><strong>{quest.title}</strong><span>{quest.lead}</span></div><button className="button dark" onClick={quest.go}>Start <span>{icons.arrow}</span></button></div></div>
-    <div className="mascot-scene"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="mascot-bubble">You’ve got this!<br/><span>Let’s take one step.</span></div><img src={mascot} alt="Leo, the Path2Uni mascot" className="mascot"/></div>
+    <div className="greeting-copy"><span className="eyebrow purple">{today}</span><h1>{t('Good to see you, {name}', { name })} <span>✦</span></h1><p>{current ? t('One step today brings {where} closer.', { where }) : t('Your {where} plan is complete — nice work.', { where })}</p><div className="daily-action"><div className="action-icon">✉</div><div><small>{quest.label}</small><strong>{quest.title}</strong><span>{quest.lead}</span></div><button className="button dark" onClick={quest.go}>{t('Start')} <span>{icons.arrow}</span></button></div></div>
+    <div className="mascot-scene"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="mascot-bubble">{t('You’ve got this!')}<br/><span>{t('Let’s take one step.')}</span></div><img src={mascot} alt="" className="mascot"/></div>
   </section>
 }
 
-function Stat({ icon, value, label, note, className = '' }) { return <article className={`stat-card ${className}`}><div className="stat-icon">{icon}</div><div><strong>{value}</strong><span>{label}</span>{note && <small>{note}</small>}</div></article> }
+function Stat({ icon, value, label, note, className = '' }) { const { t } = useT(); return <article className={`stat-card ${className}`}><div className="stat-icon">{icon}</div><div><strong>{value}</strong><span>{t(label)}</span>{note && <small>{t(note)}</small>}</div></article> }
 
 function HomeQuestPath({ setPage, plan, profile }) {
+  const { t, n } = useT()
   // Built from the plan this person actually has, so ticking a task off on My path moves
   // this too. The first two steps are what onboarding already answered.
   const mark = { done: '✓', current: '✦', locked: '·' }
   const steps = [
-    { id: 1, icon: '✓', label: destinationSummary(profile), state: 'done' },
-    { id: 2, icon: '✓', label: profile.field, state: 'done' },
+    { id: 1, icon: '✓', label: destinationSummary(profile, t), state: 'done' },
+    { id: 2, icon: '✓', label: t(profile.field), state: 'done' },
     ...(plan?.tasks ?? []).map((task, index) => ({
       id: index + 3, icon: mark[task.state] ?? '·', label: task.shortTitle,
       state: task.state === 'current' ? 'active' : task.state,
@@ -155,10 +228,11 @@ function HomeQuestPath({ setPage, plan, profile }) {
   const open = (plan?.tasks ?? []).filter(task => task.state !== 'done')
   const left = open.reduce((sum, task) => sum + (task.xp ?? 0), 0)
   const current = (plan?.tasks ?? []).find(task => task.state === 'current') ?? open[0]
-  return <article className="home-game-card"><div className="home-game-head"><div><span className="eyebrow purple">TODAY ON YOUR PATH</span><h2>{open.length ? `${open.length} step${open.length === 1 ? '' : 's'} left to level up` : 'Every step is done'}</h2></div><div className="reward-chip">◆ {left ? `+${left.toLocaleString('en-US')} XP left` : 'All XP earned'}</div></div><div className="home-quest-track" style={{gridTemplateColumns:`repeat(${steps.length},1fr)`}}>{steps.map((step,index) => <div className={`home-quest ${step.state}`} key={step.id}>{index < steps.length - 1 && <i className="quest-rail"/>}<button onClick={() => setPage('roadmap')}><span>{step.state === 'locked' ? '⌑' : step.icon}</span><b>{step.id}</b></button><small>{step.label}</small></div>)}</div>{current && <div className="home-active-quest"><span className="mini-gem">✦</span><div><small>ACTIVE QUEST · {current.due}</small><strong>{current.shortTitle}</strong><p>{current.subtasks[0] ?? current.description}</p></div><button className="button primary" onClick={() => setPage('roadmap')}>Play <span>{icons.arrow}</span></button></div>}</article>
+  return <article className="home-game-card"><div className="home-game-head"><div><span className="eyebrow purple">{t('TODAY ON YOUR PATH')}</span><h2>{open.length ? t('{count} steps left to level up', { count: open.length }) : t('Every step is done')}</h2></div><div className="reward-chip">◆ {left ? t('+{xp} XP left', { xp: n(left) }) : t('All XP earned')}</div></div><div className="home-quest-track" style={{gridTemplateColumns:`repeat(${steps.length},1fr)`}}>{steps.map((step,index) => <div className={`home-quest ${step.state}`} key={step.id}>{index < steps.length - 1 && <i className="quest-rail"/>}<button onClick={() => setPage('roadmap')}><span>{step.state === 'locked' ? '⌑' : step.icon}</span><b>{step.id}</b></button><small>{step.label}</small></div>)}</div>{current && <div className="home-active-quest"><span className="mini-gem">✦</span><div><small>{t('ACTIVE QUEST')} · {t(current.due)}</small><strong>{current.shortTitle}</strong><p>{current.subtasks[0] ?? current.description}</p></div><button className="button primary" onClick={() => setPage('roadmap')}>{t('Play')} <span>{icons.arrow}</span></button></div>}</article>
 }
 
 function Dashboard({ setChatOpen, setPage, name, plan, profile, tests, friends }) {
+  const { t, n } = useT()
   const list = plan?.tasks ?? []
   const done = list.filter(task => task.state === 'done').length
   const total = list.length
@@ -175,15 +249,18 @@ function Dashboard({ setChatOpen, setPage, name, plan, profile, tests, friends }
   const current = list.find(task => task.state === 'current') ?? list.find(task => task.state !== 'done')
   const days = planned ? Math.ceil((new Date(planned.planned_date) - new Date()) / 86400000) : null
   const next = planned
-    ? { kicker: 'YOUR NEXT EXAM', title: planned.test_name || planned.test_code, lead: `You booked this for ${planned.planned_date}.`, when: days > 0 ? `${days} day${days === 1 ? '' : 's'} left` : days === 0 ? 'Today' : 'Date has passed', go: () => setPage('profile') }
+    ? { kicker: t('YOUR NEXT EXAM'), title: planned.test_name || planned.test_code, lead: t('You booked this for {date}.', { date: planned.planned_date }), when: days > 0 ? t('{count} days left', { count: days }) : days === 0 ? t('Today') : t('Date has passed'), go: () => setPage('profile') }
     : current
-      ? { kicker: 'YOUR CURRENT STEP', title: current.shortTitle, lead: current.description, when: current.due, go: () => setPage('roadmap') }
-      : { kicker: 'NOTHING PENDING', title: 'Your plan is complete', lead: 'Add a planned exam date and it will count down here.', when: 'All done', go: () => setPage('profile') }
-  return <main className="page dashboard-page"><Greeting setChatOpen={setChatOpen} setPage={setPage} name={name} plan={plan} profile={profile} tests={tests}/><section className="stats-row"><Stat icon="⚡" value={`${done} / ${total}`} label="Tasks completed" note={total ? `${Math.round(done / total * 100)}% of your plan` : 'Generate your plan first'} className="orange"/><Stat icon="✦" value={earned.toLocaleString('en-US')} label="XP earned" note={`of ${possible.toLocaleString('en-US')} in this plan`} className="violet"/><Stat icon="◒" value={String(exams)} label={exams === 1 ? 'Exam recorded' : 'Exams recorded'} note={exams ? 'Used in your matches' : 'Add them in your profile'} className="blue"/></section><section className="dash-grid"><HomeQuestPath setPage={setPage} plan={plan} profile={profile}/><aside className="side-stack"><article className="deadline-card"><div className="card-top"><span className="warning-dot">!</span><span>{next.kicker}</span><button aria-label="More">•••</button></div><h3>{next.title}</h3><p>{next.lead}</p><div className="deadline-bottom"><strong>{next.when}</strong><button className="round-arrow" onClick={next.go}>{icons.arrow}</button></div></article><article className="friend-card"><div className="card-top"><span>YOUR CREW</span><button className="text-button" onClick={() => setPage('friends')}>See all</button></div><div className="avatars">{crew.slice(0,3).map(friend => <span key={friend.id} className={`avatar ${friend.className}`}>{friend.initials}</span>)}{crew.length > 3 && <span className="avatar a4">+{crew.length - 3}</span>}</div><p>{crew.length ? <>{crew.filter(friend => friend.university !== 'Not selected yet').length} of {crew.length} have chosen a university. <span className="demo-badge compact"><i>!</i>demo crew</span></> : 'Nobody in your crew yet — add a friend by nickname.'}</p><button className="high-five" onClick={() => setPage('friends')}>{crew.length ? 'Open your crew' : 'Add a friend'}</button></article></aside></section></main>
+      ? { kicker: t('YOUR CURRENT STEP'), title: current.shortTitle, lead: current.description, when: t(current.due), go: () => setPage('roadmap') }
+      : { kicker: t('NOTHING PENDING'), title: t('Your plan is complete'), lead: t('Add a planned exam date and it will count down here.'), when: t('All done'), go: () => setPage('profile') }
+  return <main className="page dashboard-page"><Greeting setChatOpen={setChatOpen} setPage={setPage} name={name} plan={plan} profile={profile} tests={tests}/><section className="stats-row"><Stat icon="⚡" value={`${done} / ${total}`} label="Tasks completed" note={total ? t('{percent}% of your plan', { percent: Math.round(done / total * 100) }) : 'Generate your plan first'} className="orange"/><Stat icon="✦" value={n(earned)} label="XP earned" note={t('of {total} in this plan', { total: n(possible) })} className="violet"/><Stat icon="◒" value={String(exams)} label={exams === 1 ? 'Exam recorded' : 'Exams recorded'} note={exams ? 'Used in your matches' : 'Add them in your profile'} className="blue"/></section><section className="dash-grid"><HomeQuestPath setPage={setPage} plan={plan} profile={profile}/><aside className="side-stack"><article className="deadline-card"><div className="card-top"><span className="warning-dot">!</span><span>{next.kicker}</span><button aria-label={t('More')}>•••</button></div><h3>{next.title}</h3><p>{next.lead}</p><div className="deadline-bottom"><strong>{next.when}</strong><button className="round-arrow" onClick={next.go}>{icons.arrow}</button></div></article><article className="friend-card"><div className="card-top"><span>{t('YOUR CREW')}</span><button className="text-button" onClick={() => setPage('friends')}>{t('See all')}</button></div><div className="avatars">{crew.slice(0,3).map(friend => <span key={friend.id} className={`avatar ${friend.className}`}>{friend.initials}</span>)}{crew.length > 3 && <span className="avatar a4">+{crew.length - 3}</span>}</div><p>{crew.length ? <>{t('{done} of {total} have chosen a university.', { done: crew.filter(friend => friend.university !== 'Not selected yet').length, total: crew.length })} <span className="demo-badge compact"><i>!</i>{t('demo crew')}</span></> : t('Nobody in your crew yet — add a friend by nickname.')}</p><button className="high-five" onClick={() => setPage('friends')}>{t(crew.length ? 'Open your crew' : 'Add a friend')}</button></article></aside></section></main>
 }
 
 function OSINTFlow({ setPage, plan, onGenerate, focusedNodeId, profile }) {
+  const { t } = useT()
   const [selectedId, setSelectedId] = useState(focusedNodeId || 'research')
+  // The objective is sent to the model, so it stays in the profile's own terms rather than
+  // being translated: the shortlist is matched on these words.
   const [objective, setObjective] = useState(`Find the best ${profile.field} ${profile.degree} programmes in ${profile.destinationLabel} for ${profile.intake} and build my application plan`)
   const [isGenerating, setIsGenerating] = useState(false)
   const [miniMapHidden, setMiniMapHidden] = useState(false)
@@ -202,13 +279,13 @@ function OSINTFlow({ setPage, plan, onGenerate, focusedNodeId, profile }) {
     {focusedNodeId && <button className="osint-backlink" onClick={() => setPage('roadmap')}>← Back to My Path <span>Opened task: {selected?.label}</span></button>}
     <motion.section className="osint-hero" initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{duration:.45}}><div><span className="eyebrow purple">AI + OSINT ADMISSION ENGINE</span><h1>From your goal<br/>to a verified action graph.</h1><p>Your profile gives context. OSINT adds evidence. AI turns both into ordered tasks in My Path.</p></div><motion.div className="ai-ready" whileHover={{y:-4,scale:1.02}}><i>✦</i><span><b>{focusedNodeId ? 'Opened from My Path' : 'Live graph workspace'}</b><small>{focusedNodeId ? 'Inspect evidence and dependencies' : 'Drag · zoom · inspect · regenerate'}</small></span></motion.div></motion.section>
     <section className="osint-pipeline">{[['Profile','Goals & background'],['OSINT research','Verified sources'],['AI graph','Logic & dependencies'],['My Path','Sequential tasks']].map((step,index) => <div className="pipeline-fragment" key={step[0]}><motion.div className={`pipeline-step ${index < 2 ? 'complete' : index === 2 ? 'active' : ''}`} initial={{opacity:0,x:-10}} animate={{opacity:1,x:0}} transition={{delay:index*.08}}><i>{index+1}</i><span><b>{step[0]}</b><small>{step[1]}</small></span></motion.div>{index < 3 && <em>→</em>}</div>)}</section>
-    <section className="osint-control"><div><span className="control-label">YOUR ADMISSION OBJECTIVE</span><textarea value={objective} onChange={event => setObjective(event.target.value)} aria-label="Admission objective"/><div className="profile-context">{[...destinationLabels(profile), profile.degree, profile.field, `${profile.intake} intake`, `English ${profile.englishLevel}`].map(chip => <span key={chip}>{chip}</span>)}</div></div><motion.button whileHover={{scale:1.025}} whileTap={{scale:.97}} className={`button primary generate-button ${isGenerating ? 'loading' : ''}`} disabled={isGenerating || !objective.trim()} onClick={runGeneration}>{isGenerating ? <><i/>Researching sources…</> : <>Generate graph <span>✦</span></>}</motion.button></section>
-    <section className="osint-workspace"><article className="osint-graph-card"><div className="graph-toolbar"><div><span className="eyebrow purple">INTERACTIVE KNOWLEDGE GRAPH</span><h2>Admission intelligence</h2></div><div className="source-health"><i/>{plan.sourceCount} official page{plan.sourceCount === 1 ? '' : 's'} to check</div></div><div className="flow-canvas"><ReactFlow nodes={flowNodes} edges={flowEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={handleNodeClick} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:.18}} minZoom={.55} maxZoom={1.7} nodesConnectable={false} deleteKeyCode={null} proOptions={{hideAttribution:true}}><Background gap={18} size={1} color="#d6d5e2"/><Controls showInteractive={false}/><MiniMap className={miniMapHidden ? 'minimap-hidden' : ''} pannable zoomable nodeStrokeWidth={3} nodeColor={node => node.data.type === 'source' ? '#45b979' : node.data.type === 'task' ? '#8a63d1' : '#7464cf'} maskColor="rgba(242,242,249,.72)"/></ReactFlow><div className="flow-hint">Drag nodes · scroll to zoom · click to inspect</div><button className={`minimap-toggle ${miniMapHidden ? 'is-hidden' : ''}`} onClick={() => setMiniMapHidden(value => !value)}>{miniMapHidden ? 'Show map' : 'Hide map'}</button></div><div className="osint-legend"><span><i className="profile"/>Profile data</span><span><i className="evidence"/>Verified evidence</span><span><i className="logic"/>Requirement</span><span><i className="task"/>Generated task</span></div></article>
-      <AnimatePresence mode="wait"><motion.aside key={selected.id} className="node-inspector" initial={{opacity:0,x:22}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-12}} transition={{type:'spring',stiffness:260,damping:25}}><span className={`node-kind ${selected.type}`}>{selected.type === 'task' ? `generated ${selected.taskType} task` : selected.type}</span><h2>{selected.label}</h2><p>{selected.detail}</p>{selected.type === 'source' && <div className="source-list">{(plan.shortlist ?? []).slice(0,6).map(entry => entry.website
-        ? <a key={entry.name} href={entry.website} target="_blank" rel="noreferrer"><b>{entry.name}</b><small>{entry.city}, {entry.country} · official site</small></a>
-        : <span key={entry.name} className="unlinked"><b>{entry.name}</b><small>{entry.city}, {entry.country} · no confirmed address — search for it yourself</small></span>)}<span><b>{selected.portal}</b><small>National application portal</small></span></div>}<div className="node-connections"><small>CONNECTED NODES</small>{connectedIds.map(id => { const node=sourceNodes.find(item => item.id === id); return <button key={id} onClick={() => setSelectedId(id)}>{node.label}<b>{icons.arrow}</b></button> })}</div>{selected.type === 'task' && <motion.button whileHover={{y:-2}} whileTap={{scale:.97}} className="button primary" onClick={() => setPage('roadmap')}>Open in My Path <span>{icons.arrow}</span></motion.button>}</motion.aside></AnimatePresence>
+    <section className="osint-control"><div><span className="control-label">{t('YOUR ADMISSION OBJECTIVE')}</span><textarea value={objective} onChange={event => setObjective(event.target.value)} aria-label={t('Admission objective')}/><div className="profile-context">{[...destinationLabels(profile, t), t(profile.degree), t(profile.field), t('{year} intake', { year: profile.intake }), t('English {level}', { level: profile.englishLevel })].map(chip => <span key={chip}>{chip}</span>)}</div></div><motion.button whileHover={{scale:1.025}} whileTap={{scale:.97}} className={`button primary generate-button ${isGenerating ? 'loading' : ''}`} disabled={isGenerating || !objective.trim()} onClick={runGeneration}>{isGenerating ? <><i/>{t('Researching sources…')}</> : <>{t('Generate graph')} <span>✦</span></>}</motion.button></section>
+    <section className="osint-workspace"><article className="osint-graph-card"><div className="graph-toolbar"><div><span className="eyebrow purple">{t('INTERACTIVE KNOWLEDGE GRAPH')}</span><h2>{t('Admission intelligence')}</h2></div><div className="source-health"><i/>{t('{count} official pages to check', { count: plan.sourceCount })}</div></div><div className="flow-canvas"><ReactFlow nodes={flowNodes} edges={flowEdges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onNodeClick={handleNodeClick} nodeTypes={nodeTypes} fitView fitViewOptions={{padding:.18}} minZoom={.55} maxZoom={1.7} nodesConnectable={false} deleteKeyCode={null} proOptions={{hideAttribution:true}}><Background gap={18} size={1} color="#d6d5e2"/><Controls showInteractive={false}/><MiniMap className={miniMapHidden ? 'minimap-hidden' : ''} pannable zoomable nodeStrokeWidth={3} nodeColor={node => node.data.type === 'source' ? '#45b979' : node.data.type === 'task' ? '#8a63d1' : '#7464cf'} maskColor="rgba(242,242,249,.72)"/></ReactFlow><div className="flow-hint">{t('Drag nodes · scroll to zoom · click to inspect')}</div><button className={`minimap-toggle ${miniMapHidden ? 'is-hidden' : ''}`} onClick={() => setMiniMapHidden(value => !value)}>{t(miniMapHidden ? 'Show map' : 'Hide map')}</button></div><div className="osint-legend"><span><i className="profile"/>{t('Profile data')}</span><span><i className="evidence"/>{t('Official sources')}</span><span><i className="logic"/>{t('Requirement')}</span><span><i className="task"/>{t('Generated task')}</span></div></article>
+      <AnimatePresence mode="wait"><motion.aside key={selected.id} className="node-inspector" initial={{opacity:0,x:22}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-12}} transition={{type:'spring',stiffness:260,damping:25}}><span className={`node-kind ${selected.type}`}>{selected.type === 'task' ? t('generated {type} task', { type: t(selected.taskType) }) : t(selected.type)}</span><h2>{selected.label}</h2><p>{selected.detail}</p>{selected.type === 'source' && <div className="source-list">{(plan.shortlist ?? []).slice(0,6).map(entry => entry.website
+        ? <a key={entry.name} href={entry.website} target="_blank" rel="noreferrer"><b>{entry.name}</b><small>{t(entry.city)}, {t(entry.country)} · {t('official site')}</small></a>
+        : <span key={entry.name} className="unlinked"><b>{entry.name}</b><small>{t(entry.city)}, {t(entry.country)} · {t('no confirmed address — search for it yourself')}</small></span>)}<span><b>{selected.portal}</b><small>{t('National application portal')}</small></span></div>}<div className="node-connections"><small>{t('CONNECTED NODES')}</small>{connectedIds.map(id => { const node=sourceNodes.find(item => item.id === id); return <button key={id} onClick={() => setSelectedId(id)}>{node.label}<b>{icons.arrow}</b></button> })}</div>{selected.type === 'task' && <motion.button whileHover={{y:-2}} whileTap={{scale:.97}} className="button primary" onClick={() => setPage('roadmap')}>{t('Open in My Path')} <span>{icons.arrow}</span></motion.button>}</motion.aside></AnimatePresence>
     </section>
-    <section className="task-contract"><div><span className="eyebrow">OUTPUT FOR MY PATH</span><h2>{plan.tasks.length} task{plan.tasks.length === 1 ? '' : 's'} in this plan</h2><p>Every one is generated from your answers and the sources above, in the order they unlock.</p></div>{plan.tasks.map((task,index) => <motion.article key={task.id} initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{delay:.15+index*.08}} whileHover={{y:-6,rotate:index===1 ? 1 : -1}}><i className={task.type}><TaskIcon type={task.type}/></i><span><small>0{index+1} · {task.type}</small><b>{task.shortTitle}</b><em>{task.xp} XP</em></span></motion.article>)}</section>
+    <section className="task-contract"><div><span className="eyebrow">{t('OUTPUT FOR MY PATH')}</span><h2>{t('{count} tasks in this plan', { count: plan.tasks.length })}</h2><p>{t('Every one is generated from your answers and the sources above, in the order they unlock.')}</p></div>{plan.tasks.map((task,index) => <motion.article key={task.id} initial={{opacity:0,y:18}} animate={{opacity:1,y:0}} transition={{delay:.15+index*.08}} whileHover={{y:-6,rotate:index===1 ? 1 : -1}}><i className={task.type}><TaskIcon type={task.type}/></i><span><small>0{index+1} · {t(task.type)}</small><b>{task.shortTitle}</b><em>{task.xp} XP</em></span></motion.article>)}</section>
   </main>
 }
 
@@ -300,8 +377,13 @@ function CountryMap3D({ country, city, onSelectCity }) {
 }
 
 function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
+  const { t } = useT()
   const [countryId, setCountryId] = useState('italy')
   const [city, setCity] = useState(null)
+  const [shortlistOpen, setShortlistOpen] = useState(false)
+  // The override file is fetched at runtime, so editing it needs no rebuild.
+  const [cityLifeTable, setCityLifeTable] = useState({})
+  useEffect(() => { loadCityLife().then(setCityLifeTable).catch(() => {}) }, [])
   const country = countryCatalog.find(item => item.id === countryId) ?? countryCatalog[0]
   const totalUniversities = country.cities.reduce((total, place) => total + place.universities.length, 0)
   const countryFavorites = favorites.filter(item => item.country === country.name)
@@ -312,16 +394,22 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
     if (existing) return onToggleFavorite(existing)
     onToggleFavorite({ ...university, id: uniqueId(university), sourceId: university.id, friends: university.friends ?? [], city: city.name, country: country.name })
   }
-  const switchCountry = id => { setCountryId(id); setCity(null) }
+  const life = city ? cityLife(city, country, cityLifeTable) : null
+  const selectCity = place => { setCity(place); setShortlistOpen(false) }
+  const switchCountry = id => { setCountryId(id); setCity(null); setShortlistOpen(false) }
 
   return <main className="page country-page country-library-page">
-    <section className="country-head"><div><span className="eyebrow purple">EXPLORE YOUR DESTINATION</span><h1>{city ? `${city.name}, ${country.name}` : `${country.name} map`}</h1><p>{city ? city.note : 'Explore accurate country contours, map out university cities and build a shortlist.'}</p></div><div className="country-picker" aria-label="Choose a country">{countryCatalog.map(item => <button key={item.id} className={item.id === country.id ? 'active' : ''} onClick={() => switchCountry(item.id)}><CountryFlag country={item}/>{item.shortName}</button>)}</div></section>
+    <section className="country-head"><div><span className="eyebrow purple">{t('EXPLORE YOUR DESTINATION')}</span><h1>{city ? `${t(city.name)}, ${t(country.name)}` : t('{country} map', { country: t(country.name) })}</h1><p>{city ? t(city.note) : t('Explore accurate country contours, map out university cities and build a shortlist.')}</p></div><div className="country-picker" aria-label={t('Choose a country')}>{countryCatalog.map(item => <button key={item.id} className={item.id === country.id ? 'active' : ''} onClick={() => switchCountry(item.id)}><CountryFlag country={item}/>{t(item.shortName)}</button>)}</div></section>
     <section className={`country-explorer country-explorer-3d ${city ? 'city-open' : ''}`}>
-      <div className="country-stage country-stage-3d"><CountryMap3D country={country} city={city} onSelectCity={setCity}/>
-        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type:'spring',stiffness:170,damping:22 }}><CityBackdrop city={city.name}/><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university,index)=>{const saved=Boolean(savedItem(university));const people=friends.filter(friend=>friend.university===university.name);return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved?'is-saved':''}`} whileHover={{y:-4}}><span className="uni-pin">{index+1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.focus}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend=><i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length?`${people.slice(0,2).map(friend=>friend.name).join(' & ')}${people.length>2?` +${people.length-2}`:''} chose this university`:saved?'Saved to your shortlist':'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{scale:.78,rotate:-15}} className={`favorite-star ${saved?'saved':''}`} onClick={()=>toggleUniversity(university)} aria-label={saved?`Remove ${university.name} from saved`:`Save ${university.name}`}>{saved?'★':'☆'}</motion.button></motion.article>})}</div></motion.div>}</AnimatePresence>
+      <div className="country-stage country-stage-3d"><CountryMap3D country={country} city={city} onSelectCity={selectCity}/>
+        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type:'spring',stiffness:170,damping:22 }}><CityBackdrop city={city.name}/><button className="city-back" onClick={() => setCity(null)}>← {t('Back to {country}', { country: t(country.name) })}</button><div className="city-title"><span className="eyebrow">{t('WELCOME TO')}</span><h2>{t(city.name)}</h2><p>{t(city.note)}</p></div><div className="city-universities">{city.universities.map((university,index)=>{const saved=Boolean(savedItem(university));const people=friends.filter(friend=>friend.university===university.name);return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved?'is-saved':''}`} whileHover={{y:-4}}><span className="uni-pin">{index+1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{t(university.focus)}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend=><i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length?`${people.slice(0,2).map(friend=>friend.name).join(' & ')}${people.length>2?` +${people.length-2}`:''} chose this university`:saved?t('Saved to your shortlist'):t('Explore programmes and admissions')}</em></span></span><motion.button whileTap={{scale:.78,rotate:-15}} className={`favorite-star ${saved?'saved':''}`} onClick={()=>toggleUniversity(university)} aria-label={saved?`Remove ${university.name} from saved`:`Save ${university.name}`}>{saved?'★':'☆'}</motion.button></motion.article>})}</div></motion.div>}</AnimatePresence>
       </div>
-      <aside className="country-sidebar"><span className="country-badge"><CountryFlag country={country}/>DESTINATION MAP</span><h2>{city?.name || country.name}</h2><p>{city ? `Compare universities in ${city.name} and save the ones you want to revisit.` : 'Pick a glowing city point, or drag the country contour to see it from another angle.'}</p><div className="country-facts">{city ? <><div><b>{city.universities.length}</b><small>universities shown</small></div><div><b>{countryFavorites.length}</b><small>saved here</small></div></> : <><div><b>{country.cities.length}</b><small>cities mapped</small></div><div><b>{totalUniversities}</b><small>universities to explore</small></div></>}</div>{!city && <div className="map-legend"><span><i className="legend-pulse"/>Tap a glowing point</span><small>Every outline uses its national flag colours and can rotate in 3D.</small></div>}<button className="button primary" onClick={() => setCity(city || country.cities[0])}>{city ? 'Review city shortlist' : `Explore ${country.cities[0].name}`} <span>{icons.arrow}</span></button></aside>
+      <aside className="country-sidebar"><span className="country-badge"><CountryFlag country={country}/>{t('DESTINATION MAP')}</span><h2>{t(city?.name || country.name)}</h2><p>{city ? t('Compare universities in {city} and save the ones you want to revisit.', { city: t(city.name) }) : t('Pick a glowing city point, or drag the country contour to see it from another angle.')}</p><div className="country-facts">{city ? <><div><b>{city.universities.length}</b><small>{t('universities shown')}</small></div><div><b>{countryFavorites.length}</b><small>{t('saved here')}</small></div></> : <><div><b>{country.cities.length}</b><small>{t('cities mapped')}</small></div><div><b>{totalUniversities}</b><small>{t('universities to explore')}</small></div></>}</div>{!city && <div className="map-legend"><span><i className="legend-pulse"/>{t('Tap a glowing point')}</span><small>{t('Every outline uses its national flag colours and can rotate in 3D.')}</small></div>}<button className="button primary" onClick={() => city ? setShortlistOpen(true) : selectCity(country.cities[0])}>{city ? t('What’s on in {city}', { city: t(city.name) }) : t('Explore {city}', { city: t(country.cities[0].name) })} <span>{icons.arrow}</span></button></aside>
     </section>
+    <AnimatePresence>{shortlistOpen && city && <motion.div className="city-shortlist-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setShortlistOpen(false)}><motion.section className="city-shortlist-modal" initial={{opacity:0,y:42,scale:.97}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,y:30,scale:.98}} transition={{type:'spring',stiffness:220,damping:24}} onClick={event => event.stopPropagation()}><header><div><span className="eyebrow purple">{t('CITY LIFE')}</span><h2>{t(city.name)}, {t(country.name)}</h2><p>{t('What studying here actually looks like.')}</p></div><button onClick={() => setShortlistOpen(false)} aria-label={t('Close')}>×</button></header><div className="city-life-body">
+      <section className="city-life-unis"><h3>{t('Universities here')}</h3><div className="city-life-uni-list">{life.universities.map((uni, index) => <article key={uni.name}><span className="shortlist-number">0{index + 1}</span><div><h4>{uni.name}</h4><p>{t(uni.focus)}</p></div>{uni.web ? <a href={uni.web} target="_blank" rel="noreferrer">{t('official site')} ↗</a> : <span className="no-link">{t('no confirmed address')}</span>}</article>)}</div></section>
+      <section className="city-life-what"><h3>{t('What to look for')} <span className="demo-badge compact"><i>!</i>{t('demo')}</span></h3><div className="city-life-grid">{life.items.map(item => <article key={item.title}><i>{item.icon}</i><div><h4>{t(item.title)}</h4><p>{t(item.text)}</p></div></article>)}</div></section>
+    </div><footer><small>{t('Activity descriptions are demonstration data — check the current programme on the organiser’s own page.')}</small><button className="button soft" onClick={() => setShortlistOpen(false)}>{t('Back to {city}', { city: t(city.name) })}</button></footer></motion.section></motion.div>}</AnimatePresence>
   </main>
 }
 
@@ -330,26 +418,101 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
 // shortlist, so "Your goals" reopens the real onboarding editor rather than a second form.
 // The rest has no column yet and stays in localStorage until one exists — and nothing here
 // is prefilled with an invented person, because a name you did not type is not your profile.
-const profileDefaults = { firstName:'',lastName:'',birthDate:'',citizenship:'',city:'',education:'',school:'',graduationYear:'',language:'',budget:'',activities:'',awards:'',skills:'',portfolio:'' }
+const profileDefaults = { firstName:'',lastName:'',birthDate:'',citizenship:'',city:'',education:'',school:'',graduationYear:'',language:'',budget:'',activities:'',awards:'',skills:'',portfolio:'',essay:'' }
 const profileEditorFields = {
   about:{title:'About you',subtitle:'Personal details, education and language',fields:[['firstName','First name','text'],['lastName','Last name','text'],['birthDate','Date of birth','date'],['citizenship','Citizenship','text'],['city','Current city','text'],['education','Education level','text'],['school','School or university','text'],['graduationYear','Graduation year','number'],['language','Other languages','text']]},
   strengths:{title:'Your strengths',subtitle:'Activities, awards and portfolio',fields:[['activities','Activities','textarea'],['awards','Awards and achievements','textarea'],['skills','Skills','textarea'],['portfolio','Portfolio link','url'],['budget','Annual budget (EUR)','number']]},
+  essay:{title:'Motivation letter',subtitle:'Plan it yourself, with Leo asking the questions',fields:[['essay','Your draft','textarea']]},
+}
+
+function EssayWorkshop({ details }) {
+  const { t, lang } = useT()
+  const [state, setState] = useState({ loading: true })
+  const [shared, setShared] = useState(false)
+  const activities = [details.activities, details.awards, details.skills].filter(Boolean).join('\n').trim()
+
+  const ask = (withActivities) => {
+    setState({ loading: true })
+    setShared(withActivities)
+    fetch('/api/me/essay', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang, activities: withActivities ? activities : '' }),
+    })
+      .then(response => (response.ok ? response.json() : Promise.reject()))
+      .then(payload => setState({ loading: false, ...payload }))
+      .catch(() => setState({ loading: false, sections: [] }))
+  }
+  useEffect(() => { ask(false) }, [lang])
+
+  const words = String(details.essay || '').trim().split(/\s+/).filter(Boolean).length
+
+  return <div className="essay-workshop">
+    <div className="hint-panel">
+      <div className="hint-head"><img src={mascot} alt=""/><div><b>{t('Leo does not write your letter')}</b><small>{t('It is your letter, and a generated paragraph is a statement about you that you did not make. Leo gives the shape and asks the questions only you can answer.')}</small></div></div>
+      {state.loading ? <div className="hint-panel loading"><span className="map-spinner"/>{t('Working out the shape of your letter…')}</div> : <>
+        <div className="essay-sections">{(state.sections ?? []).map((section, index) => <article key={section.title}>
+          <span className="essay-step">0{index + 1}</span>
+          <div><h4>{section.title}</h4><p>{section.purpose}</p>
+            <ul>{section.questions.map(question => <li key={question}>{question}</li>)}</ul></div>
+        </article>)}</div>
+        {state.weakest && <p className="essay-warn"><i>!</i>{state.weakest}</p>}
+        {state.evidence?.length ? <div className="essay-evidence">
+          <h4>{t('Turning what you did into evidence')}</h4>
+          {state.evidence.map(item => <article key={item.activity}>
+            <b>{item.activity}</b><p>{item.shows}</p><p className="essay-sharpen">{item.sharpen}</p>
+          </article>)}
+        </div> : null}
+        {!shared && activities && <button type="button" className="button soft essay-share" onClick={() => ask(true)}>
+          {t('Read what I wrote under Your strengths and comment on it')}
+        </button>}
+        {!shared && activities && <small className="essay-consent">{t('That sends only those three boxes to the model, once, to comment on. Your draft is never sent and never leaves this browser.')}</small>}
+      </>}
+    </div>
+    <p className="essay-count">{t('{count} words in your draft', { count: words })} · {t('saved in this browser only')}</p>
+  </div>
+}
+
+const KIND_ICON = { competition: '♜', project: '✦', volunteering: '♧', research: '◎', course: '▤', community: '☕' }
+
+function OpportunityHints() {
+  const { t, lang } = useT()
+  const [state, setState] = useState({ loading: true })
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/me/opportunities?lang=${lang}`)
+      .then(response => (response.ok ? response.json() : Promise.reject()))
+      .then(payload => { if (alive) setState({ loading: false, ...payload }) })
+      .catch(() => { if (alive) setState({ loading: false, ideas: [] }) })
+    return () => { alive = false }
+  }, [lang])
+
+  if (state.loading) return <div className="hint-panel loading"><span className="map-spinner"/>{t('Leo is looking for places you could take part…')}</div>
+  if (!state.ideas?.length) return null
+  return <div className="hint-panel">
+    <div className="hint-head"><img src={mascot} alt=""/><div><b>{t('Where you could take part')}</b><small>{t('Chosen for your field and level. Check on the organiser’s own page that it still runs, and what the dates and rules are — we do not hold them.')}</small></div></div>
+    <div className="hint-list">{state.ideas.map(idea => <article key={idea.title}>
+      <i>{KIND_ICON[idea.kind] ?? '✦'}</i>
+      <div><h4>{idea.title}</h4><p>{idea.why}</p>{idea.start && <p className="hint-start"><b>{t('First move')}:</b> {idea.start}</p>}</div>
+    </article>)}</div>
+  </div>
 }
 
 function ProfileEditor({ section, values, onSave, onClose }) {
+  const { t } = useT()
   const config=profileEditorFields[section]
   const [draft,setDraft]=useState(values)
-  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">PROFILE DETAILS</span><h2>{config.title}</h2><p>{config.subtitle}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header><div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{label}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={`Add ${label.toLowerCase()}`}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>Cancel</button><button className="button primary" type="submit">Save changes <span>✓</span></button></footer></motion.form></div>
+  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">{t('PROFILE DETAILS')}</span><h2>{t(config.title)}</h2><p>{t(config.subtitle)}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>{section === 'strengths' && <OpportunityHints/>}{section === 'essay' && <EssayWorkshop details={draft}/>}<div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{t(label)}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={t('Add {field}', { field: t(label).toLowerCase() })}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>{t('Cancel')}</button><button className="button primary" type="submit">{t('Save changes')} <span>✓</span></button></footer></motion.form></div>
 }
 
 function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {
+  const { t } = useT()
   const [tab, setTab] = useState('overview')
   const [editor,setEditor]=useState(null)
   const [highFives,setHighFives]=useState(()=>new Set())
   const [details,setDetails]=useState(()=>{try{return {...profileDefaults,...JSON.parse(localStorage.getItem('path2uni:profileDetails'))}}catch{return profileDefaults}})
   const saveDetails=next=>{setDetails(next);localStorage.setItem('path2uni:profileDetails',JSON.stringify(next));setEditor(null)}
-  const testSummary = applicantProfile.tests?.length ? `${applicantProfile.tests.length} test${applicantProfile.tests.length === 1 ? '' : 's'} added` : 'Add completed and planned exams'
-  const sections=[{title:'About you',description:'Personal details, education and language',action:'about'},{title:'Your goals',description:`${destinationLabels(profile).join(', ')} · ${profile.field} · ${profile.intake}`,action:'goals'},{title:'Test results',description:testSummary,action:'tests'},{title:'Your strengths',description:'Activities, awards and portfolio',action:'strengths'}]
+  const testSummary = applicantProfile.tests?.length ? t('{count} exams added', { count: applicantProfile.tests.length }) : t('Add completed and planned exams')
+  const sections=[{title:'About you',description:t('Personal details, education and language'),action:'about'},{title:'Your goals',description:`${destinationLabels(profile, t).join(', ')} · ${t(profile.field)} · ${profile.intake}`,action:'goals'},{title:'Test results',description:testSummary,action:'tests'},{title:'Your strengths',description:t('Activities, awards and portfolio'),action:'strengths'},{title:'Motivation letter',description:details.essay ? t('{count} words drafted', { count: String(details.essay).trim().split(/\s+/).filter(Boolean).length }) : t('Plan it with Leo'),action:'essay'}]
   const tabs = [{id:'overview',label:'Overview'}, {id:'saved',label:'Saved',count:favorites.length}, {id:'friends',label:'Friends',count:friends.length}]
   const tracked=['firstName','lastName','birthDate','citizenship','city','education','school','graduationYear','language','budget','activities','awards','skills','portfolio']
   // Goals and the account name are already on file — onboarding required them — so they count
@@ -358,14 +521,15 @@ function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, us
   const initials=(user.displayName||user.username).trim().charAt(0).toUpperCase()
   const toggleHighFive=id=>setHighFives(current=>{const next=new Set(current);next.has(id)?next.delete(id):next.add(id);return next})
 
-  return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">{initials}</div><div><span className="eyebrow purple">MY PROFILE</span><h1>{user.displayName || user.username}</h1><p>{destinationLabels(profile).join(' · ')} · {profile.degree} · {profile.intake} intake</p></div><div className="profile-actions"><button className="button soft" onClick={onEditProfile}>Edit profile <span>✎</span></button><button className="logout-button" onClick={onLogout}>Log out ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{item.label}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
-    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">PROFILE COMPLETION</span><h2>{completion}% complete</h2><p>{completion===100?'Your profile is complete and ready for personalised recommendations.':'Complete the remaining details so Leo can tailor every recommendation.'}</p></div><div className="progress-circle" style={{background:`conic-gradient(#6653d8 0 ${completion}%,#ebeafd ${completion}%)`}}><b>{completion}%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section.title} onClick={()=>section.action==='tests'?onOpenExamStep():section.action==='goals'?onEditProfile():setEditor(section.action)}><span className="profile-number">0{index + 1}</span><span><h3>{section.title}</h3><p>{section.description}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">NEXT BEST STEP</span><h3>Tell us about your test results</h3><p>It takes about 3 minutes and improves your university matches.</p><button className="button dark" onClick={onOpenExamStep}>Complete now <span>{icons.arrow}</span></button></aside></section></>}
-      {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">YOUR SHORTLIST</span><h2>Universities worth coming back to.</h2><p>Every gold star from the country map is collected here.</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{university.city}, {university.country}</small><h3>{university.name}</h3><p>{university.match} · English programmes</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>View on map {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>No saved universities yet</h3><p>Explore a country and tap a star on any university you want to compare later.</p><button className="button primary" onClick={() => setPage('universities')}>Explore universities <span>{icons.arrow}</span></button></div>}</section>}
-      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">YOUR ADMISSION CREW</span><h2>See where your friends are heading.</h2><p>Their university choices also appear directly on the city cards.</p></div><button className="button soft" onClick={() => setPage('friends')}>+ Add by nickname</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <>Chose <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className={`high-five ${highFives.has(friend.id)?'sent':''}`} onClick={()=>toggleHighFive(friend.id)}>{highFives.has(friend.id)?'✓ Sent':'✋ High-five'}</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>{editor&&<ProfileEditor section={editor} values={details} onSave={saveDetails} onClose={()=>setEditor(null)}/>}
+  return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">{initials}</div><div><span className="eyebrow purple">{t('MY PROFILE')}</span><h1>{user.displayName || user.username}</h1><p>{destinationLabels(profile, t).join(' · ')} · {t(profile.degree)} · {t('{year} intake', { year: profile.intake })}</p></div><div className="profile-actions"><LanguageSwitch compact/><button className="button soft" onClick={onEditProfile}>{t('Edit profile')} <span>✎</span></button><button className="logout-button" onClick={onLogout}>{t('Log out')} ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{t(item.label)}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
+    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">{t('PROFILE COMPLETION')}</span><h2>{t('{percent}% complete', { percent: completion })}</h2><p>{t(completion===100?'Your profile is complete and ready for personalised recommendations.':'Complete the remaining details so Leo can tailor every recommendation.')}</p></div><div className="progress-circle" style={{background:`conic-gradient(#6653d8 0 ${completion}%,#ebeafd ${completion}%)`}}><b>{completion}%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section.title} onClick={()=>section.action==='tests'?onOpenExamStep():section.action==='goals'?onEditProfile():setEditor(section.action)}><span className="profile-number">0{index + 1}</span><span><h3>{t(section.title)}</h3><p>{section.description}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">{t('NEXT BEST STEP')}</span><h3>{t('Tell us about your test results')}</h3><p>{t('It takes about 3 minutes and improves your university matches.')}</p><button className="button dark" onClick={onOpenExamStep}>{t('Complete now')} <span>{icons.arrow}</span></button></aside></section></>}
+      {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">{t('YOUR SHORTLIST')}</span><h2>{t('Universities worth coming back to.')}</h2><p>{t('Every gold star from the country map is collected here.')}</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{t(university.city)}, {t(university.country)}</small><h3>{university.name}</h3><p>{t(university.focus)}</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>{t('View on map')} {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>{t('No saved universities yet')}</h3><p>{t('Explore a country and tap a star on any university you want to compare later.')}</p><button className="button primary" onClick={() => setPage('universities')}>{t('Explore universities')} <span>{icons.arrow}</span></button></div>}</section>}
+      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">{t('YOUR ADMISSION CREW')}</span><h2>{t('See where your friends are heading.')}</h2><p>{t('Their university choices also appear directly on the city cards.')}</p></div><button className="button soft" onClick={() => setPage('friends')}>+ {t('Add by nickname')}</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? t('Choosing a destination') : <>{t('Chose')} <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className={`high-five ${highFives.has(friend.id)?'sent':''}`} onClick={()=>toggleHighFive(friend.id)}>{highFives.has(friend.id)?`✓ ${t('Sent')}`:`✋ ${t('High-five')}`}</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>{editor&&<ProfileEditor section={editor} values={details} onSave={saveDetails} onClose={()=>setEditor(null)}/>}
   </main>
 }
 
 function Friends({ friends, onAddFriend }) {
+  const { t } = useT()
   const [nickname, setNickname] = useState('')
   const [notice, setNotice] = useState(null)
   const submit = event => {
@@ -374,7 +538,7 @@ function Friends({ friends, onAddFriend }) {
     setNotice(result)
     if (result.ok) setNickname('')
   }
-  return <main className="page friends-page"><section className="friends-hero-grid"><section className="list-hero"><span className="eyebrow purple">YOUR CREW</span><h1>Progress is better<br/>together.</h1><p>Find a Path2Uni student by nickname and add them to your admission crew.</p></section><form className="add-friend-card" onSubmit={submit}><span className="add-friend-icon">＋</span><div><span className="eyebrow purple">ADD A FRIEND</span><h2>Find by nickname</h2></div><label><span>@</span><input value={nickname} onChange={event => { setNickname(event.target.value); setNotice(null) }} placeholder="nickname" aria-label="Friend nickname"/><button type="submit">Add friend</button></label>{notice && <p className={notice.ok ? 'success' : 'error'}>{notice.message}</p>}<small>Try a unique nickname, for example <b>@alex.abroad</b>.</small></form></section><div className="friend-list">{friends.map(friend => <article key={friend.id}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <><span className="inline-friend-star">★</span> Chose {friend.university}</>} · today</p></div><button className="high-five">✋ High-five</button></article>)}</div></main>
+  return <main className="page friends-page"><section className="friends-hero-grid"><section className="list-hero"><span className="eyebrow purple">{t('YOUR CREW')}</span><h1>{t('Progress is better together.')}</h1><p>{t('Find a Path2Uni student by nickname and add them to your admission crew.')}</p></section><form className="add-friend-card" onSubmit={submit}><span className="add-friend-icon">＋</span><div><span className="eyebrow purple">{t('ADD A FRIEND')}</span><h2>{t('Find by nickname')}</h2></div><label><span>@</span><input value={nickname} onChange={event => { setNickname(event.target.value); setNotice(null) }} placeholder={t('nickname')} aria-label={t('Friend nickname')}/><button type="submit">{t('Add friend')}</button></label>{notice && <p className={notice.ok ? 'success' : 'error'}>{t(notice.message, notice.vars)}</p>}<small>{t('Try a unique nickname, for example')} <b>@alex.abroad</b>.</small></form></section><div className="friend-list">{friends.map(friend => <article key={friend.id}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <><span className="inline-friend-star">★</span> Chose {friend.university}</>} · today</p></div><button className="high-five">✋ High-five</button></article>)}</div></main>
 }
 
 const examCatalog = [
@@ -392,6 +556,7 @@ const examCatalog = [
 ]
 
 function ExamResultsStep({ initialTests, onSave, onClose }) {
+  const { t } = useT()
   const [tests, setTests] = useState(() => examCatalog.map(exam => {
     const saved = initialTests?.find(test => test.test_code === exam.code || test.code === exam.code)
     return { ...exam, selected:Boolean(saved), status:saved?.status || 'completed', score:saved?.score ?? '', scoreText:saved?.score_text || '', date:saved?.test_date || saved?.planned_date || '' }
@@ -403,14 +568,14 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
     event.preventDefault()
     const testWithoutDate = tests.find(test => test.selected && !test.date)
     if (testWithoutDate) {
-      setError(`${testWithoutDate.name}: select a test date before saving.`)
+      setError(t('{exam}: select a test date before saving.', { exam: testWithoutDate.name }))
       return
     }
     const invalidTest = tests.find(test => test.selected && test.min != null && test.score !== '' && (
       Number(test.score) < test.min || Number(test.score) > test.max || Math.abs((Number(test.score) - test.min) / test.step - Math.round((Number(test.score) - test.min) / test.step)) > 1e-9
     ))
     if (invalidTest) {
-      setError(`${invalidTest.name}: enter a score from ${invalidTest.min} to ${invalidTest.max} in increments of ${invalidTest.step}.`)
+      setError(t('{exam}: enter a score from {min} to {max} in increments of {step}.', { exam: invalidTest.name, min: invalidTest.min, max: invalidTest.max, step: invalidTest.step }))
       return
     }
     setSaving(true); setError('')
@@ -423,13 +588,13 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
   }
 
   return <div className="exam-step-backdrop"><motion.form className="exam-step" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="exam-step-title" initial={{opacity:0,y:24,scale:.98}} animate={{opacity:1,y:0,scale:1}}>
-    <header><div><span className="eyebrow purple">PROFILE · TEST RESULTS</span><h1 id="exam-step-title">Which exams have you taken?</h1><p>Add completed tests or exams you are planning. You can update them later.</p></div><button type="button" className="exam-close" onClick={onClose} aria-label="Close">×</button></header>
+    <header><div><span className="eyebrow purple">{t('PROFILE · TEST RESULTS')}</span><h1 id="exam-step-title">{t('Which exams have you taken?')}</h1><p>{t('Add completed tests or exams you are planning. You can update them later.')}</p></div><button type="button" className="exam-close" onClick={onClose} aria-label={t('Close')}>×</button></header>
     <div className="exam-list">{tests.map(test => <article key={test.code} className={test.selected ? 'selected' : ''}>
-      <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{test.range}</small></span></label>
-      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="mock">МОК тест</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" min={test.min} max={test.max} step={test.step} value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'planned' ? 'Planned date' : 'Test date'} *</span><input type="date" required value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
+      <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{t(test.range)}</small></span></label>
+      {test.selected && <div className="exam-fields"><label><span>{t('Status')}</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">{t('Completed')}</option><option value="mock">{t('Mock test')}</option><option value="planned">{t('Planned')}</option></select></label><label><span>{t(['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score')}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder={t('Enter result')}/> : <input type="number" min={test.min} max={test.max} step={test.step} value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{t(test.status === 'planned' ? 'Planned date' : 'Test date')} *</span><input type="date" required value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
     </article>)}</div>
-    {error && <p className="exam-error">{error}</p>}
-    <footer><small>These results will be used to match admission requirements.</small><button className="button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save and continue'} <span>{icons.arrow}</span></button></footer>
+    {error && <p className="exam-error">{t(error)}</p>}
+    <footer><small>{t('These results will be used to match admission requirements.')}</small><button className="button primary" type="submit" disabled={saving}>{t(saving ? 'Saving…' : 'Save and continue')} <span>{icons.arrow}</span></button></footer>
   </motion.form></div>
 }
 
@@ -437,12 +602,9 @@ function LoginScreen({ onLogin }) {
   return <main className="login-screen"><motion.section className="login-card" initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}}><div className="login-brand"><span className="brand-mark">P</span><b>path<span>2</span>uni</b></div><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">SEE YOU SOON, MILA</span><h1>You’ve logged out.</h1><p>Your roadmap, saved universities and friends are still safely stored on this device.</p><button className="button primary" onClick={onLogin}>Log back in <span>{icons.arrow}</span></button></motion.section></main>
 }
 
-function Footer() {
-  return <footer className="site-footer"><div className="footer-main"><div className="footer-left"><div className="footer-school"><span>134 лицей</span><p>Дугашев Айсар <b>командир</b></p><p>Оралхан Нурланды</p><p>Кензин Эльмир</p></div><div className="footer-partner"><span>FIZTEX</span><p>Игорь Пак</p></div></div><div className="footer-contact"><span>Почта руководителя</span><a href="mailto:aisardugasev@gmail.com">aisardugasev@gmail.com</a></div></div><div className="footer-place"><span>Алматы</span><b>2026</b></div></footer>
-}
-
 function Chat({ open, onClose, name, hasPlan }) {
-  const [messages, setMessages] = useState([{ from: 'leo', text: `Hi ${name}! I\u2019m Leo, your admission guide. What would you like to make clearer today?` }])
+  const { t, lang } = useT()
+  const [messages, setMessages] = useState([{ from: 'leo', text: t('Hi {name}! I’m Leo, your admission guide. What would you like to make clearer today?', { name }) }])
   const [draft, setDraft] = useState('')
   const [thinking, setThinking] = useState(false)
   const endRef = useRef(null)
@@ -461,9 +623,9 @@ function Chat({ open, onClose, name, hasPlan }) {
         body: JSON.stringify({ message: question, history }),
       })
       const payload = await response.json().catch(() => ({}))
-      setMessages(current => [...current, { from: 'leo', text: payload.reply || payload.error || 'Something went wrong on my side.', offline: payload.source?.kind === 'rules' }])
+      setMessages(current => [...current, { from: 'leo', text: payload.reply || t(payload.error || 'Something went wrong on my side.'), offline: payload.source?.kind === 'rules' }])
     } catch {
-      setMessages(current => [...current, { from: 'leo', text: 'I can\u2019t reach the server right now.', offline: true }])
+      setMessages(current => [...current, { from: 'leo', text: t('I can’t reach the server right now.'), offline: true }])
     } finally { setThinking(false) }
   }
 
@@ -472,26 +634,28 @@ function Chat({ open, onClose, name, hasPlan }) {
     : ['How do I start?', 'What is the Decision Map for?']
 
   return <aside className={`chat ${open ? 'open' : ''}`} aria-hidden={!open}>
-    <div className="chat-head"><div><img src={mascot} alt=""/><span><b>Leo AI</b><small>Here to guide you</small></span></div><button onClick={onClose} aria-label="Close">×</button></div>
+    <div className="chat-head"><div><img src={mascot} alt=""/><span><b>{t('Leo AI')}</b><small>{t('Here to guide you')}</small></span></div><button onClick={onClose} aria-label={t('Close')}>×</button></div>
     <div className="chat-messages" aria-live="polite">
       {messages.map((message, index) => <p className={`${message.from} ${message.offline ? 'offline' : ''}`} key={index}>{message.text}</p>)}
       {thinking && <p className="leo thinking"><i/><i/><i/></p>}
       <div ref={endRef}/>
     </div>
-    <div className="chat-quick">{quick.map(text => <button key={text} onClick={() => setDraft(text)} disabled={thinking}>{text}</button>)}</div>
+    <div className="chat-quick">{quick.map(text => <button key={text} onClick={() => setDraft(t(text))} disabled={thinking}>{t(text)}</button>)}</div>
     <form onSubmit={send}>
-      <input value={draft} onChange={event => setDraft(event.target.value)} placeholder={thinking ? 'Leo is thinking\u2026' : 'Ask Leo anything\u2026'} disabled={thinking}/>
-      <button aria-label="Send message" disabled={thinking || !draft.trim()}>{icons.arrow}</button>
+      <input value={draft} onChange={event => setDraft(event.target.value)} placeholder={t(thinking ? 'Leo is thinking…' : 'Ask Leo anything…')} disabled={thinking}/>
+      <button aria-label={t('Send message')} disabled={thinking || !draft.trim()}>{icons.arrow}</button>
     </form>
   </aside>
 }
 
 // A profile saved before several destinations existed carries only the single label, so both
 // helpers fall back to it rather than rendering an empty chip row.
-const destinationLabels = profile => (profile.destinationLabels?.length ? profile.destinationLabels : [profile.destinationLabel]).filter(Boolean)
-const destinationSummary = profile => { const list = destinationLabels(profile); return list.length > 2 ? `${list[0]} +${list.length - 1}` : list.join(' · ') }
+const destinationLabels = (profile, t = value => value) =>
+  (profile.destinationLabels?.length ? profile.destinationLabels : [profile.destinationLabel]).filter(Boolean).map(label => t(label))
+const destinationSummary = (profile, t) => { const list = destinationLabels(profile, t); return list.length > 2 ? `${list[0]} +${list.length - 1}` : list.join(' · ') }
 
 export default function App() {
+  const { t, n, lang } = useT()
   const [page, setPage] = useState('home'); const [chatOpen, setChatOpen] = useState(false)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
   // `undefined` = still asking the server, `null` = definitely signed out.
@@ -507,6 +671,8 @@ export default function App() {
   const [applicantProfile, setApplicantProfile] = useState(loadApplicantProfile)
   const [examStepOpen, setExamStepOpen] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
+  const [activity, setActivity] = useState(null)
+  const [celebration, setCelebration] = useState(null)
   // Stage 5 opens over stage 4 rather than as its own page: the comparison only makes sense
   // against the shortlist you just picked from.
   const [comparing, setComparing] = useState(null)
@@ -524,6 +690,8 @@ export default function App() {
   useEffect(() => {
     if (!user) { setProfile(undefined); return }
     let alive = true
+    fetch('/api/me/activity').then(response => (response.ok ? response.json() : null))
+      .then(data => { if (alive && data) setActivity(data) }).catch(() => {})
     Promise.all([
       fetch('/api/me/profile').then(response => response.json()).catch(() => ({ profile: null })),
       fetch('/api/me/plan').then(response => response.json()).catch(() => ({ plan: null })),
@@ -542,15 +710,20 @@ export default function App() {
     const clean = rawNickname.trim().replace(/^@+/, '').replace(/\s+/g, '')
     if (clean.length < 3) return { ok:false, message:'Enter at least 3 characters after @.' }
     if (!/^[a-zA-Z0-9._-]+$/.test(clean)) return { ok:false, message:'Use letters, numbers, dots, underscores or dashes.' }
-    if (friends.some(friend => friend.nickname?.replace(/^@/, '').toLowerCase() === clean.toLowerCase())) return { ok:false, message:`@${clean} is already in your crew.` }
+    if (friends.some(friend => friend.nickname?.replace(/^@/, '').toLowerCase() === clean.toLowerCase())) return { ok:false, message:'{nickname} is already in your crew.', vars:{ nickname:`@${clean}` } }
     const readable = clean.split(/[._-]/)[0]
     const name = readable.charAt(0).toUpperCase() + readable.slice(1)
     const friend = { id:`friend-${Date.now()}`, nickname:`@${clean}`, name, initials:name.charAt(0) || '?', className:`a${friends.length % 4 + 1}`, university:'Not selected yet' }
     setFriends(current => [...current, friend])
-    return { ok:true, message:`${friend.nickname} was added to your crew.` }
+    return { ok:true, message:'{nickname} was added to your crew.', vars:{ nickname: friend.nickname } }
   }
   const openOSINT = nodeId => { setFocusedNodeId(nodeId); setPage('intel') }
   const saveTests = async tests => setApplicantProfile(await saveApplicantTests(tests))
+
+  const refreshActivity = () => fetch('/api/me/activity')
+    .then(response => (response.ok ? response.json() : null))
+    .then(data => data && setActivity(data))
+    .catch(() => {})
 
   const setTaskDone = async (position, done) => {
     const response = await fetch('/api/me/task', {
@@ -559,6 +732,23 @@ export default function App() {
     })
     const payload = await response.json().catch(() => ({}))
     if (payload.plan) setAdmissionPlan(payload.plan)
+    refreshActivity()
+  }
+
+  // One quest, not a whole stage. The server decides what that does to the stage's status,
+  // the XP and the streak, so the client never computes progress it would then disagree about.
+  const completeQuest = async (taskId, subtaskIndex, completed) => {
+    const response = await fetch('/api/me/subtask', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, subtaskIndex, completed }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) return
+    if (payload.plan) setAdmissionPlan(payload.plan)
+    if (payload.activity) setActivity(payload.activity)
+    if (payload.event?.streakExtended) {
+      setCelebration({ streak: payload.activity.streak.current, awardedXp: payload.event.awardedXp })
+    }
   }
 
   const logOut = async () => {
@@ -572,7 +762,7 @@ export default function App() {
 
   const postPlan = async objective => {
     const response = await fetch('/api/me/plan', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ objective }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ objective, lang }),
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok || !payload.plan) throw new Error(payload.error || 'Could not generate the plan')
@@ -594,17 +784,17 @@ export default function App() {
     return plan
   }
   const nav = [{label:'Home',icon:'home',id:'home'}, {label:'My matches',icon:'target',id:'advisor'}, {label:'My path',icon:'path',id:'roadmap'}, {label:'Decision map',icon:'search',id:'intel'}, {label:'Universities',icon:'uni',id:'universities'}, {label:'Friends',icon:'friends',id:'friends'}]
-  if (user === undefined) return <div className="auth-booting"><span className="map-spinner"/>Checking your session…</div>
+  if (user === undefined) return <div className="auth-booting"><span className="map-spinner"/>{t('Checking your session…')}</div>
   if (user === null) return <Auth onSignedIn={setUser}/>
-  if (profile === undefined) return <div className="auth-booting"><span className="map-spinner"/>Loading your path…</div>
+  if (profile === undefined) return <div className="auth-booting"><span className="map-spinner"/>{t('Loading your path…')}</div>
   if (profile === null) return <Onboarding user={user} onDone={async item => { setProfile(item); await buildFirstPlan(item) }}/>
   // Re-answering rebuilds the plan, and the diagnosis cache keys on the answers, so the
   // matches change with it. That is the brief's "a changed answer visibly changes the result".
   if (editingProfile) return <Onboarding user={user} initial={profile} onCancel={() => setEditingProfile(false)}
     onDone={async item => { setProfile(item); setEditingProfile(false); await buildFirstPlan(item) }}/>
-  if (building || !admissionPlan) return <div className="auth-booting"><span className="map-spinner"/>Building your path from your answers…</div>
+  if (building || !admissionPlan) return <div className="auth-booting"><span className="map-spinner"/>{t('Building your path from your answers…')}</div>
 
   const firstName = (user.displayName || user.username).trim().split(/\s+/)[0]
   const initial = firstName.charAt(0).toUpperCase()
-  const body = page === 'advisor' ? <Advisor profile={profile} onCompare={setComparing} onOpenPlan={() => setPage('roadmap')}/> : page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName} plan={admissionPlan} profile={profile} tests={applicantProfile.tests} friends={friends}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT} onTaskDone={setTaskDone}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut} user={user} profile={profile} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)} onEditProfile={() => setEditingProfile(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId} profile={profile}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
-  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{initial}</span><span><b>{user.displayName || user.username}</b><small>My profile</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ {(admissionPlan?.tasks ?? []).filter(task => task.state === 'done').reduce((sum, task) => sum + (task.xp ?? 0), 0).toLocaleString('en-US')} XP</button><button className="bell" aria-label="Notifications">{icons.bell}<i/></button><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><Footer/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label="Open Leo AI"><img src={mascot} alt=""/><span>Ask Leo <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label="Close Leo AI"/>}{comparing && <Comparison items={comparing} onClose={() => setComparing(null)}/>}{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>}
+  const body = page === 'advisor' ? <Advisor profile={profile} onCompare={setComparing} onOpenPlan={() => setPage('roadmap')}/> : page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName} plan={admissionPlan} profile={profile} tests={applicantProfile.tests} friends={friends}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT} onTaskDone={setTaskDone} onCompleteQuest={completeQuest} activity={activity}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut} user={user} profile={profile} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)} onEditProfile={() => setEditingProfile(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId} profile={profile}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
+  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{initial}</span><span><b>{user.displayName || user.username}</b><small>{t('My profile')}</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ {n(activity?.xp?.earned ?? 0)} XP</button><StreakWidget streak={activity?.streak} today={activity?.today}/><Notices onGo={setPage}/><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><SiteFooter onNavigate={setPage}/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label={t('Open Leo AI')}><img src={mascot} alt=""/><span>{t('Ask Leo')} <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label={t('Close Leo AI')}/>}{comparing && <Comparison items={comparing} onClose={() => setComparing(null)}/>}<AnimatePresence>{celebration && <StreakCelebration streak={celebration.streak} awardedXp={celebration.awardedXp} onClose={() => setCelebration(null)}/>}</AnimatePresence>{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>}

@@ -10,8 +10,14 @@ import {
 } from './profiles.js'
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
+import { getActivity, setSubtaskProgress } from './activity.js'
+import { suggestOpportunities } from './opportunities.js'
+import { planEssay } from './essay.js'
+import { buildNotices } from './notices.js'
 import { diagnose, explainMatches, adviceFingerprint, readCachedAdvice, writeCachedAdvice } from './advisor.js'
 import { shortlistUniversities } from '../src/data/worldUniversities.js'
+import { scholarshipsFor } from '../src/data/scholarships.js'
+import { requirementsFor } from '../src/data/admissionDemo.js'
 import { buildGraph } from '../src/services/planShape.js'
 import { readObjective, fields as FIELD_VOCAB } from '../src/services/planContext.js'
 
@@ -48,8 +54,15 @@ const reply = (status, body, headers = {}) => ({ status, body, headers })
  * @param {{method:string, path:string, body:string, cookie:string, userAgent:string, apiKey:string|null}} request
  * @returns {Promise<{status:number, body:object, headers?:object}>}
  */
+const LANGS = new Set(['ru', 'kk', 'en'])
+/** The interface language, from the query string or the body. Anything unknown means English. */
+const readLang = (query, parsed) => {
+  const asked = query?.get?.('lang') ?? parsed?.lang
+  return LANGS.has(asked) ? asked : 'en'
+}
+
 export async function route(request) {
-  const { method, path, body, cookie, userAgent, apiKey, secure = false } = request
+  const { method, path, query, body, cookie, userAgent, apiKey, secure = false } = request
 
   // Local, not module-level: rebinding a shared helper would leak this request's `secure`
   // into every later one and stack a new wrapper on each call.
@@ -111,9 +124,13 @@ export async function route(request) {
       const objective = typeof parsed.objective === 'string' ? parsed.objective.slice(0, 500) : ''
       if (!objective.trim()) return json(400, { error: 'objective is required' })
 
-      const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
+      const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey, lang: readLang(query, parsed) })
       await savePlan(me.id, { plan, objective })
-      return json(200, { plan: { ...plan, objective } })
+      // Read it back rather than returning what we just built: the stored rows carry the task
+      // ids the per-quest progress API addresses, so a freshly generated plan is completable
+      // straight away instead of only after a reload.
+      const stored = await getCurrentPlan(me.id)
+      return json(200, { plan: stored ? rehydrate(stored, profile) : { ...plan, objective } })
     }
 
     // Stage 3 and 4 of the product path: the profile read back, and why each match suits.
@@ -136,13 +153,14 @@ export async function route(request) {
         limit: countries.length > 1 ? 6 : 5,
       })
       // Regenerated only when the answers it was built from change.
-      const fingerprint = adviceFingerprint(profile, tests)
+      const lang = readLang(query, parsed)
+      const fingerprint = adviceFingerprint(profile, tests, lang)
       const cached = await readCachedAdvice(profile, fingerprint)
       if (cached) return json(200, cached)
 
       const [diagnosis, matches] = await Promise.all([
-        diagnose({ apiKey, profile, tests }),
-        explainMatches({ apiKey, profile, tests, shortlist }),
+        diagnose({ apiKey, profile, tests, lang }),
+        explainMatches({ apiKey, profile, tests, shortlist, lang, fieldTag }),
       ])
       // A rules-only answer means the model was unreachable; caching it would freeze the
       // fallback in place until the profile changes.
@@ -156,6 +174,51 @@ export async function route(request) {
       const result = await setTaskDone(me.id, parsed.position, Boolean(parsed.done))
       if (result.error) return json(result.status, { error: result.error })
       return json(200, { plan: rehydrate(result.plan, await getProfile(me.id)) })
+    }
+
+    // The streak and the per-quest XP. Read separately from the plan because it changes on a
+    // different rhythm: the plan is regenerated rarely, this moves every time a quest is ticked.
+    // POST, not GET: the body may carry what the applicant wrote about themselves, and that
+    // does not belong in a URL, a proxy log or a browser history entry.
+    if (path === '/api/me/notices' && method === 'GET') {
+      return json(200, await buildNotices(me.id))
+    }
+
+    if (path === '/api/me/essay' && method === 'POST') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      const activities = typeof parsed.activities === 'string' ? parsed.activities : ''
+      return json(200, await planEssay({ apiKey, profile, activities, lang: readLang(query, parsed) }))
+    }
+
+    if (path === '/api/me/opportunities' && method === 'GET') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      return json(200, await suggestOpportunities({ apiKey, profile, lang: readLang(query, parsed) }))
+    }
+
+    if (path === '/api/me/funding' && method === 'GET') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      const countries = profile.destinations?.length ? profile.destinations : [profile.destination]
+      return json(200, {
+        countries: countries.filter(Boolean).map((iso, index) => ({
+          iso,
+          label: profile.destinationLabels?.[index] ?? iso,
+          tuition: requirementsFor({ country: iso, id: null })?.tuition ?? null,
+          scholarships: scholarshipsFor(iso),
+        })),
+      })
+    }
+
+    if (path === '/api/me/activity' && method === 'GET') {
+      return json(200, await getActivity(me.id))
+    }
+
+    if (path === '/api/me/subtask' && method === 'POST') {
+      const result = await setSubtaskProgress(me.id, parsed)
+      if (result.error) return json(result.status, { error: result.error })
+      return json(200, { ...result, plan: rehydrate(await getCurrentPlan(me.id), await getProfile(me.id)) })
     }
 
     if (path === '/api/me/tests' && method === 'GET') {
@@ -173,7 +236,7 @@ export async function route(request) {
       if (!profile) return json(409, { error: 'Complete your profile first' })
       const stored = await getCurrentPlan(me.id)
       const result = await askLeo({
-        apiKey, profile, plan: stored,
+        apiKey, profile, plan: stored, lang: readLang(query, parsed),
         history: parsed.history, message: parsed.message,
       })
       if (result.error) return json(result.status, { error: result.error })

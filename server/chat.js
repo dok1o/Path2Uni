@@ -10,7 +10,7 @@
 // de-identified: whatever they type goes to the model. The system prompt therefore also tells
 // Leo not to ask for documents, identity numbers or contact details.
 
-import { MODELS, callGemini } from './gemini.js'
+import { MODELS, callGemini, languageRule } from './gemini.js'
 
 const MAX_TURNS = 12
 const MAX_CHARS = 800
@@ -70,7 +70,7 @@ function buildContext({ profile, plan }) {
 }
 
 /** @returns {{reply: string, source: {kind: string, model?: string, reason?: string}}} */
-export async function askLeo({ apiKey, profile, plan, history, message }) {
+export async function askLeo({ apiKey, profile, plan, history, message, lang = 'en' }) {
   // The body comes from a client, so a number or an object is malformed input, not a message.
   const clean = typeof message === 'string' ? message.trim().slice(0, MAX_CHARS) : ''
   if (!clean) return { error: 'Say something first', status: 400 }
@@ -86,7 +86,7 @@ export async function askLeo({ apiKey, profile, plan, history, message }) {
   try {
     const { text, model } = await callGemini({
       apiKey,
-      system: `${SYSTEM}\n\n${buildContext({ profile, plan })}`,
+      system: `${SYSTEM}\n\n${languageRule(lang)}\n\n${buildContext({ profile, plan })}`,
       contents: [...turns, { role: 'user', parts: [{ text: clean }] }],
       generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
       signal: AbortSignal.timeout(25_000),

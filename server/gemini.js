@@ -6,6 +6,17 @@
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models'
 
+/**
+ * Which language the model must answer in. The interface is translated, so an English
+ * diagnosis under a Russian UI is not a translated product — it is a half-translated one,
+ * which reads worse than leaving it in English throughout.
+ */
+const LANGUAGE_NAMES = { ru: 'Russian', kk: 'Kazakh', en: 'English' }
+export const languageRule = lang => {
+  const name = LANGUAGE_NAMES[lang] ?? LANGUAGE_NAMES.en
+  return `Write every word of your answer in ${name}. Keep university names, exam names (IELTS, TOEFL, SAT) and portal names (uni-assist, Studielink, UCAS) exactly as given — a translated name cannot be searched for.`
+}
+
 export const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite']
 
 // A model that just answered 503 will almost certainly 503 again within the minute, and each
@@ -86,9 +97,9 @@ export async function callGemini({ apiKey, system, contents, generationConfig, s
 }
 
 /** Returns { plan, model, usage } or throws with .attempts describing every failure. */
-export async function generateWithGemini({ apiKey, context, shortlist, signal }) {
+export async function generateWithGemini({ apiKey, context, shortlist, signal, lang = 'en' }) {
   const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: SYSTEM }] },
+    systemInstruction: { parts: [{ text: `${SYSTEM}\n\n${languageRule(lang)}` }] },
     contents: [{ role: 'user', parts: [{ text: buildPrompt({ context, shortlist }) }] }],
     generationConfig: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, temperature: 0.4 },
   })

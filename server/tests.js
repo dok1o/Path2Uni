@@ -10,7 +10,10 @@ import { getProfile } from './profiles.js'
 // Mirrors the catalogue offered in the UI. An unknown code is rejected rather than stored,
 // so the column cannot quietly fill up with typos from a future client.
 const CODES = new Set(['SAT', 'IELTS', 'UNT', 'DET', 'TOEFL_IBT', 'ACT', 'CAMBRIDGE', 'IB', 'AP', 'A_LEVEL', 'OTHER'])
-const STATUSES = new Set(['completed', 'planned'])
+// 'mock' is a practice sitting — a real score on a real date, but not an official result.
+// 009 adds it to the exam_status enum; without it here the UI's own option is rejected.
+const STATUSES = new Set(['completed', 'mock', 'planned'])
+const IS_TAKEN = status => status === 'completed' || status === 'mock'
 
 const asDate = value => {
   if (!value) return null
@@ -34,6 +37,12 @@ export function validateTests(rows) {
       ? null : Number(row.score)
     if (score !== null && !Number.isFinite(score)) return { error: `score for ${code} is not a number` }
 
+    // 010 makes a result without its date unstorable: an exam you cannot date cannot be
+    // checked against a validity window — an IELTS certificate is only good for two years.
+    // Validating here turns that from a raw constraint violation into a 400 that names the exam.
+    const dated = IS_TAKEN(status) ? asDate(row.test_date) : asDate(row.planned_date)
+    if (!dated) return { error: `${code}: ${IS_TAKEN(status) ? 'a test date' : 'a planned date'} is required` }
+
     clean.push({
       code,
       name: String(row.test_name ?? code).slice(0, 80),
@@ -42,7 +51,7 @@ export function validateTests(rows) {
       scoreText: row.score_text ? String(row.score_text).slice(0, 40) : null,
       // A completed exam has a date in the past tense, a planned one in the future; the UI
       // collects one field, so only the matching column is filled.
-      takenOn: status === 'completed' ? asDate(row.test_date) : null,
+      takenOn: IS_TAKEN(status) ? asDate(row.test_date) : null,
       plannedOn: status === 'planned' ? asDate(row.planned_date) : null,
     })
   }

@@ -7,6 +7,7 @@ import { register } from '../server/auth.js'
 import { saveProfile } from '../server/profiles.js'
 import { validateTests, getTests, saveTests } from '../server/tests.js'
 import { route } from '../server/routes.js'
+import { englishGap } from '../src/data/admissionDemo.js'
 
 const up = await isReachable()
 const db = { skip: up ? false : 'postgres is not running' }
@@ -64,8 +65,11 @@ test('only the date matching the status is kept', () => {
   assert.equal(planned.takenOn, null, 'a planned exam kept a taken date')
 })
 
-test('an unparseable date becomes null instead of an invalid row', () => {
-  assert.equal(validateTests([{ ...IELTS, test_date: 'someday' }]).value[0].takenOn, null)
+test('an undateable result is named and refused, not stored dateless', () => {
+  // It used to fall through as null. 010 makes such a row unstorable anyway, and a result
+  // nobody can date cannot be checked against a validity window.
+  assert.match(validateTests([{ ...IELTS, test_date: 'someday' }]).error, /IELTS/)
+  assert.match(validateTests([{ ...SAT, planned_date: null }]).error, /planned date/)
 })
 
 // ---------- storage ----------
@@ -96,10 +100,32 @@ test('saving replaces the whole set, so a removed exam disappears', db, async ()
 
 test('a text grade is stored for exams that have no numeric score', db, async () => {
   const { user } = await newUser()
-  await saveTests(user.id, [{ test_code: 'A_LEVEL', test_name: 'A-level', status: 'completed', score_text: 'A*' }])
+  await saveTests(user.id, [{ test_code: 'A_LEVEL', test_name: 'A-level', status: 'completed', score_text: 'A*', test_date: '2025-06-12' }])
   const [row] = await getTests(user.id)
   assert.equal(row.score_text, 'A*')
   assert.equal(row.score, null)
+})
+
+test('a result without its date is a 400, not a constraint violation', db, async () => {
+  // 010_require_profile_test_date.sql makes such a row unstorable. Without the same check in
+  // validateTests the API would answer 500 and say nothing about which exam was wrong.
+  const { user } = await newUser()
+  const result = await saveTests(user.id, [{ test_code: 'IELTS', test_name: 'IELTS Academic', status: 'completed', score: 7 }])
+  assert.match(result.error, /IELTS/)
+  assert.match(result.error, /test date/)
+})
+
+test('a mock sitting is stored, dated, and never counts as a certificate', db, async () => {
+  const { user } = await newUser()
+  await saveTests(user.id, [{ test_code: 'IELTS', test_name: 'IELTS Academic', status: 'mock', score: 7.5, test_date: '2026-02-10' }])
+  const [row] = await getTests(user.id)
+  assert.equal(row.status, 'mock')
+  assert.equal(row.test_date, '2026-02-10')
+  assert.equal(row.planned_date, null)
+  // A practice score is a real number on a real day, but it proves nothing to an admissions office.
+  const gap = englishGap({ englishLevel: 'B2', tests: await getTests(user.id) }, { test: 'IELTS', band: 6.5 })
+  assert.notEqual(gap.status, 'clear')
+  assert.match(gap.detail, /mock/i)
 })
 
 test('tests cannot be stored without a profile', db, async () => {

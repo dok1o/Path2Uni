@@ -184,6 +184,15 @@ export function englishGap({ englishLevel, tests = [] }, requirement) {
     if (margin >= 0) return { status: 'just', detail: `Your IELTS ${sat.score} meets the ${requirement.band} typically asked, with little margin.` }
     return { status: 'short', detail: `Your IELTS ${sat.score} is below the ${requirement.band} typically asked.` }
   }
+  // A mock sitting is a real score but not a certificate, so it can never clear the bar.
+  // It is still worth naming: silence reads as "we ignored what I entered".
+  const mock = tests.find(test => test.test_code === 'IELTS' && test.status === 'mock' && test.score != null)
+  if (mock && requirement?.band && typeof requirement.band === 'number') {
+    return Number(mock.score) >= requirement.band
+      ? { status: 'plan', detail: `Your mock IELTS ${mock.score} is at the ${requirement.band} usually asked — the official sitting is what proves it.` }
+      : { status: 'short', detail: `Your mock IELTS ${mock.score} is below the ${requirement.band} usually asked, so there is room to work before booking the real one.` }
+  }
+
   // No certificate yet: fall back to the self-reported level.
   const level = BAND_ORDER.indexOf(String(englishLevel || '').toLowerCase())
   if (level < 0) return { status: 'unknown', detail: 'No English certificate on file yet.' }

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mascot from './assets/leo-mascot.png'
+import cityFallback from './assets/cities/city-fallback.jpg'
 import Auth from './Auth.jsx'
 import Onboarding from './Onboarding.jsx'
 import Advisor, { Comparison } from './Advisor.jsx'
@@ -180,6 +181,27 @@ function CountryFlag({ country }) {
   return <i className={`flag flag-${country.id}`} aria-hidden="true" />
 }
 
+const cityImageCache = new Map()
+function CityBackdrop({ city }) {
+  const [image,setImage]=useState(()=>cityImageCache.get(city)?.image||cityFallback)
+  const [source,setSource]=useState(()=>cityImageCache.get(city)?.source||'')
+  useEffect(()=>{
+    let active=true
+    const cached=cityImageCache.get(city)
+    if(cached){setImage(cached.image);setSource(cached.source);return()=>{active=false}}
+    setImage(cityFallback);setSource('')
+    const params=new URLSearchParams({action:'query',format:'json',origin:'*',prop:'pageimages|info',inprop:'url',piprop:'thumbnail',pithumbsize:'1600',titles:city})
+    fetch(`https://en.wikipedia.org/w/api.php?${params}`).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
+      const page=Object.values(data.query?.pages||{})[0]
+      if(!active||!page?.thumbnail?.source)return
+      const result={image:page.thumbnail.source,source:page.fullurl||''}
+      cityImageCache.set(city,result);setImage(result.image);setSource(result.source)
+    }).catch(()=>{})
+    return()=>{active=false}
+  },[city])
+  return <div className="city-photo-backdrop" style={{backgroundImage:`url("${image}")`}}>{source&&<a href={source} target="_blank" rel="noreferrer">Photo: Wikimedia</a>}</div>
+}
+
 function CountryFlagPattern({ country }) {
   const id = `country-flag-${country.id}`
   const patternProps = { id, width: '1', height: '1', patternUnits: 'objectBoundingBox', patternContentUnits: 'objectBoundingBox' }
@@ -261,21 +283,50 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
     <section className="country-head"><div><span className="eyebrow purple">EXPLORE YOUR DESTINATION</span><h1>{city ? `${city.name}, ${country.name}` : `${country.name} map`}</h1><p>{city ? city.note : 'Explore accurate country contours, map out university cities and build a shortlist.'}</p></div><div className="country-picker" aria-label="Choose a country">{countryCatalog.map(item => <button key={item.id} className={item.id === country.id ? 'active' : ''} onClick={() => switchCountry(item.id)}><CountryFlag country={item}/>{item.shortName}</button>)}</div></section>
     <section className={`country-explorer country-explorer-3d ${city ? 'city-open' : ''}`}>
       <div className="country-stage country-stage-3d"><CountryMap3D country={country} city={city} onSelectCity={setCity}/>
-        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-sky"><span className="building b1"/><span className="building b2"/><span className="building b3"/><span className="building dome"/></div><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university, index) => { const saved = Boolean(savedItem(university)); const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved ? 'is-saved' : ''}`} whileHover={{ y: -4 }}><span className="uni-pin">{index + 1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.focus}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length ? `${people.slice(0,2).map(friend => friend.name).join(' & ')}${people.length > 2 ? ` +${people.length - 2}` : ''} chose this university` : saved ? 'Saved to your shortlist' : 'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{ scale: .78, rotate: -15 }} className={`favorite-star ${saved ? 'saved' : ''}`} onClick={() => toggleUniversity(university)} aria-label={saved ? `Remove ${university.name} from saved` : `Save ${university.name}`}>{saved ? '★' : '☆'}</motion.button></motion.article> })}</div></motion.div>}</AnimatePresence>
+        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type:'spring',stiffness:170,damping:22 }}><CityBackdrop city={city.name}/><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university,index)=>{const saved=Boolean(savedItem(university));const people=friends.filter(friend=>friend.university===university.name);return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved?'is-saved':''}`} whileHover={{y:-4}}><span className="uni-pin">{index+1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.focus}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend=><i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length?`${people.slice(0,2).map(friend=>friend.name).join(' & ')}${people.length>2?` +${people.length-2}`:''} chose this university`:saved?'Saved to your shortlist':'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{scale:.78,rotate:-15}} className={`favorite-star ${saved?'saved':''}`} onClick={()=>toggleUniversity(university)} aria-label={saved?`Remove ${university.name} from saved`:`Save ${university.name}`}>{saved?'★':'☆'}</motion.button></motion.article>})}</div></motion.div>}</AnimatePresence>
       </div>
       <aside className="country-sidebar"><span className="country-badge"><CountryFlag country={country}/>DESTINATION MAP</span><h2>{city?.name || country.name}</h2><p>{city ? `Compare universities in ${city.name} and save the ones you want to revisit.` : 'Pick a glowing city point, or drag the country contour to see it from another angle.'}</p><div className="country-facts">{city ? <><div><b>{city.universities.length}</b><small>universities shown</small></div><div><b>{countryFavorites.length}</b><small>saved here</small></div></> : <><div><b>{country.cities.length}</b><small>cities mapped</small></div><div><b>{totalUniversities}</b><small>universities to explore</small></div></>}</div>{!city && <div className="map-legend"><span><i className="legend-pulse"/>Tap a glowing point</span><small>Every outline uses its national flag colours and can rotate in 3D.</small></div>}<button className="button primary" onClick={() => setCity(city || country.cities[0])}>{city ? 'Review city shortlist' : `Explore ${country.cities[0].name}`} <span>{icons.arrow}</span></button></aside>
     </section>
   </main>
 }
 
-function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {  const [tab, setTab] = useState('overview')
-  const testSummary = applicantProfile.tests?.length ? `${applicantProfile.tests.length} test${applicantProfile.tests.length === 1 ? '' : 's'} added` : 'Add completed and planned exams'
-  const sections = [['About you','Personal details, education and language'],['Your goals','Country, programme and intended start date'],['Test results',testSummary],['Your strengths','Activities, awards and portfolio']]
-  const tabs = [{id:'overview',label:'Overview'}, {id:'saved',label:'Saved',count:favorites.length}, {id:'friends',label:'Friends',count:friends.length}]
+// The profile is edited in two places, and they must never become two sources of truth for
+// the same fact. Destination, degree, field and intake live in the database and decide the
+// shortlist, so "Your goals" reopens the real onboarding editor rather than a second form.
+// The rest has no column yet and stays in localStorage until one exists — and nothing here
+// is prefilled with an invented person, because a name you did not type is not your profile.
+const profileDefaults = { firstName:'',lastName:'',birthDate:'',citizenship:'',city:'',education:'',school:'',graduationYear:'',language:'',budget:'',activities:'',awards:'',skills:'',portfolio:'' }
+const profileEditorFields = {
+  about:{title:'About you',subtitle:'Personal details, education and language',fields:[['firstName','First name','text'],['lastName','Last name','text'],['birthDate','Date of birth','date'],['citizenship','Citizenship','text'],['city','Current city','text'],['education','Education level','text'],['school','School or university','text'],['graduationYear','Graduation year','number'],['language','Other languages','text']]},
+  strengths:{title:'Your strengths',subtitle:'Activities, awards and portfolio',fields:[['activities','Activities','textarea'],['awards','Awards and achievements','textarea'],['skills','Skills','textarea'],['portfolio','Portfolio link','url'],['budget','Annual budget (EUR)','number']]},
+}
 
-  return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">{(user.displayName || user.username).trim().charAt(0).toUpperCase()}</div><div><span className="eyebrow purple">MY PROFILE</span><h1>{user.displayName || user.username}</h1><p>{destinationLabels(profile).join(' · ')} · {profile.degree} · {profile.intake} intake</p></div><div className="profile-actions"><button className="button soft" onClick={onEditProfile}>Edit profile <span>✎</span></button><button className="logout-button" onClick={onLogout}>Log out ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{item.label}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
-    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">PROFILE COMPLETION</span><h2>68% complete</h2><p>Just a few details left before Leo can tailor every recommendation.</p></div><div className="progress-circle"><b>68%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section[0]} onClick={section[0] === 'Test results' ? onOpenExamStep : undefined}><span className="profile-number">0{index + 1}</span><span><h3>{section[0]}</h3><p>{section[1]}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">NEXT BEST STEP</span><h3>Tell us about your test results</h3><p>It takes about 3 minutes and improves your university matches.</p><button className="button dark" onClick={onOpenExamStep}>Complete now <span>{icons.arrow}</span></button></aside></section></>}
-      {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">YOUR SHORTLIST</span><h2>Universities worth coming back to.</h2><p>Every gold star from the country map is collected here.</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{university.city}, {university.country}</small><h3>{university.name}</h3><p>{university.match} · English programmes</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>View on map {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>No saved universities yet</h3><p>Explore a country and tap a star on any university you want to compare later.</p><button className="button primary" onClick={() => setPage('universities')}>Explore universities <span>{icons.arrow}</span></button></div>}</section>}      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">YOUR ADMISSION CREW</span><h2>See where your friends are heading.</h2><p>Their university choices also appear directly on the city cards.</p></div><button className="button soft" onClick={() => setPage('friends')}>+ Add by nickname</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <>Chose <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className="high-five">✋ High-five</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>
+function ProfileEditor({ section, values, onSave, onClose }) {
+  const config=profileEditorFields[section]
+  const [draft,setDraft]=useState(values)
+  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">PROFILE DETAILS</span><h2>{config.title}</h2><p>{config.subtitle}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header><div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{label}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={`Add ${label.toLowerCase()}`}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>Cancel</button><button className="button primary" type="submit">Save changes <span>✓</span></button></footer></motion.form></div>
+}
+
+function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {
+  const [tab, setTab] = useState('overview')
+  const [editor,setEditor]=useState(null)
+  const [highFives,setHighFives]=useState(()=>new Set())
+  const [details,setDetails]=useState(()=>{try{return {...profileDefaults,...JSON.parse(localStorage.getItem('path2uni:profileDetails'))}}catch{return profileDefaults}})
+  const saveDetails=next=>{setDetails(next);localStorage.setItem('path2uni:profileDetails',JSON.stringify(next));setEditor(null)}
+  const testSummary = applicantProfile.tests?.length ? `${applicantProfile.tests.length} test${applicantProfile.tests.length === 1 ? '' : 's'} added` : 'Add completed and planned exams'
+  const sections=[{title:'About you',description:'Personal details, education and language',action:'about'},{title:'Your goals',description:`${destinationLabels(profile).join(', ')} · ${profile.field} · ${profile.intake}`,action:'goals'},{title:'Test results',description:testSummary,action:'tests'},{title:'Your strengths',description:'Activities, awards and portfolio',action:'strengths'}]
+  const tabs = [{id:'overview',label:'Overview'}, {id:'saved',label:'Saved',count:favorites.length}, {id:'friends',label:'Friends',count:friends.length}]
+  const tracked=['firstName','lastName','birthDate','citizenship','city','education','school','graduationYear','language','budget','activities','awards','skills','portfolio']
+  // Goals and the account name are already on file — onboarding required them — so they count
+  // as done rather than sitting forever as two missing items nobody can fill in from here.
+  const completion=Math.round((tracked.filter(key=>String(details[key]||'').trim()).length+2+(applicantProfile.tests?.length?1:0))/(tracked.length+3)*100)
+  const initials=(user.displayName||user.username).trim().charAt(0).toUpperCase()
+  const toggleHighFive=id=>setHighFives(current=>{const next=new Set(current);next.has(id)?next.delete(id):next.add(id);return next})
+
+  return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">{initials}</div><div><span className="eyebrow purple">MY PROFILE</span><h1>{user.displayName || user.username}</h1><p>{destinationLabels(profile).join(' · ')} · {profile.degree} · {profile.intake} intake</p></div><div className="profile-actions"><button className="button soft" onClick={onEditProfile}>Edit profile <span>✎</span></button><button className="logout-button" onClick={onLogout}>Log out ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{item.label}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
+    <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">PROFILE COMPLETION</span><h2>{completion}% complete</h2><p>{completion===100?'Your profile is complete and ready for personalised recommendations.':'Complete the remaining details so Leo can tailor every recommendation.'}</p></div><div className="progress-circle" style={{background:`conic-gradient(#6653d8 0 ${completion}%,#ebeafd ${completion}%)`}}><b>{completion}%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section.title} onClick={()=>section.action==='tests'?onOpenExamStep():section.action==='goals'?onEditProfile():setEditor(section.action)}><span className="profile-number">0{index + 1}</span><span><h3>{section.title}</h3><p>{section.description}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">NEXT BEST STEP</span><h3>Tell us about your test results</h3><p>It takes about 3 minutes and improves your university matches.</p><button className="button dark" onClick={onOpenExamStep}>Complete now <span>{icons.arrow}</span></button></aside></section></>}
+      {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">YOUR SHORTLIST</span><h2>Universities worth coming back to.</h2><p>Every gold star from the country map is collected here.</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{university.city}, {university.country}</small><h3>{university.name}</h3><p>{university.match} · English programmes</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>View on map {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>No saved universities yet</h3><p>Explore a country and tap a star on any university you want to compare later.</p><button className="button primary" onClick={() => setPage('universities')}>Explore universities <span>{icons.arrow}</span></button></div>}</section>}
+      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">YOUR ADMISSION CREW</span><h2>See where your friends are heading.</h2><p>Their university choices also appear directly on the city cards.</p></div><button className="button soft" onClick={() => setPage('friends')}>+ Add by nickname</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <>Chose <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className={`high-five ${highFives.has(friend.id)?'sent':''}`} onClick={()=>toggleHighFive(friend.id)}>{highFives.has(friend.id)?'✓ Sent':'✋ High-five'}</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>{editor&&<ProfileEditor section={editor} values={details} onSave={saveDetails} onClose={()=>setEditor(null)}/>}
   </main>
 }
 
@@ -292,15 +343,15 @@ function Friends({ friends, onAddFriend }) {
 }
 
 const examCatalog = [
-  { code:'SAT', name:'SAT', range:'400–1600' },
-  { code:'IELTS', name:'IELTS Academic', range:'0–9' },
-  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140' },
-  { code:'DET', name:'Duolingo English Test', range:'10–160' },
-  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120' },
-  { code:'ACT', name:'ACT', range:'1–36' },
+  { code:'SAT', name:'SAT', range:'400–1600', min:400, max:1600, step:10 },
+  { code:'IELTS', name:'IELTS Academic', range:'0–9', min:0, max:9, step:0.5 },
+  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140', min:0, max:140, step:1 },
+  { code:'DET', name:'Duolingo English Test', range:'10–160', min:10, max:160, step:5 },
+  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120', min:0, max:120, step:1 },
+  { code:'ACT', name:'ACT', range:'1–36', min:1, max:36, step:1 },
   { code:'CAMBRIDGE', name:'Cambridge English', range:'Score' },
-  { code:'IB', name:'IB Diploma', range:'0–45' },
-  { code:'AP', name:'AP Exams', range:'1–5' },
+  { code:'IB', name:'IB Diploma', range:'0–45', min:0, max:45, step:1 },
+  { code:'AP', name:'AP Exams', range:'1–5', min:1, max:5, step:1 },
   { code:'A_LEVEL', name:'A-level', range:'Grade' },
   { code:'OTHER', name:'Other exam', range:'Result' },
 ]
@@ -315,6 +366,18 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
   const update = (code, changes) => setTests(current => current.map(test => test.code === code ? { ...test, ...changes } : test))
   const submit = async event => {
     event.preventDefault()
+    const testWithoutDate = tests.find(test => test.selected && !test.date)
+    if (testWithoutDate) {
+      setError(`${testWithoutDate.name}: select a test date before saving.`)
+      return
+    }
+    const invalidTest = tests.find(test => test.selected && test.min != null && test.score !== '' && (
+      Number(test.score) < test.min || Number(test.score) > test.max || Math.abs((Number(test.score) - test.min) / test.step - Math.round((Number(test.score) - test.min) / test.step)) > 1e-9
+    ))
+    if (invalidTest) {
+      setError(`${invalidTest.name}: enter a score from ${invalidTest.min} to ${invalidTest.max} in increments of ${invalidTest.step}.`)
+      return
+    }
     setSaving(true); setError('')
     try {
       await onSave(tests.filter(test => test.selected))
@@ -328,7 +391,7 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
     <header><div><span className="eyebrow purple">PROFILE · TEST RESULTS</span><h1 id="exam-step-title">Which exams have you taken?</h1><p>Add completed tests or exams you are planning. You can update them later.</p></div><button type="button" className="exam-close" onClick={onClose} aria-label="Close">×</button></header>
     <div className="exam-list">{tests.map(test => <article key={test.code} className={test.selected ? 'selected' : ''}>
       <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{test.range}</small></span></label>
-      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" step="any" value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'completed' ? 'Test date' : 'Planned date'}</span><input type="date" value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
+      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="mock">МОК тест</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" min={test.min} max={test.max} step={test.step} value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'planned' ? 'Planned date' : 'Test date'} *</span><input type="date" required value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
     </article>)}</div>
     {error && <p className="exam-error">{error}</p>}
     <footer><small>These results will be used to match admission requirements.</small><button className="button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save and continue'} <span>{icons.arrow}</span></button></footer>

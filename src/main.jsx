@@ -6,10 +6,7 @@ import './explorer.css'
 import './osint.css'
 import './premium.css'
 import './social.css'
-import './worldmap.css'
-import './auth.css'
-import './advisor.css'
-import App from './App.jsx'
+import App from './App'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode><App /></StrictMode>,

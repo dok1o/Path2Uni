@@ -6,23 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "server": "node server/index.js",
-    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js",
-    "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/api.test.js",
-    "keygen": "node scripts/keygen.js",
-    "catalog:fetch": "node scripts/fetch-wikidata.js",
-    "catalog:maps": "node scripts/build-country-maps.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "@xyflow/react": "^12.11.6",
-    "d3-geo": "^3.1.1",
     "motion": "^13.4.0",
-    "pg": "^8.23.0",
     "react": "latest",
     "react-dom": "latest",
-    "topojson-client": "^3.1.0",
     "vite": "latest"
   }
 }

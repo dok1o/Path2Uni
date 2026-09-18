@@ -1,0 +1,22 @@
+{"at":"2026-09-18T07:34:20.249Z","status":"failed","reason":"cascade_exhausted","attempts":[{"model":"gemini-3.6-flash","status":400,"detail":"{\n  \"error\": {\n    \"code\": 400,\n    \"message\": \"API key not valid. Please pass a valid API key.\",\n    \"status\": \"INVALID_ARGUMENT\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/googl"}],"latencyMs":672}
+{"at":"2026-09-18T07:41:31.485Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T07:41:31.585Z","status":"skipped","reason":"no_api_key","latencyMs":0}
+{"at":"2026-09-18T07:45:42.269Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T07:45:42.500Z","status":"skipped","reason":"no_api_key","latencyMs":1}
+{"at":"2026-09-18T07:59:36.449Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":445,"outputTokens":338,"taskCount":3,"shortlist":8,"latencyMs":2202}
+{"at":"2026-09-18T08:00:08.770Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":445,"outputTokens":443,"taskCount":4,"shortlist":8,"latencyMs":2461}
+{"at":"2026-09-18T08:08:36.667Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T08:08:36.799Z","status":"skipped","reason":"no_api_key","latencyMs":1}
+{"at":"2026-09-18T08:13:03.778Z","status":"ok","model":"gemini-3.6-flash","promptTokens":296,"outputTokens":208,"taskCount":3,"shortlist":3,"latencyMs":8600}
+{"at":"2026-09-18T08:15:34.863Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":507,"outputTokens":331,"taskCount":3,"shortlist":10,"latencyMs":3332}
+{"at":"2026-09-18T08:16:33.341Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":507,"outputTokens":356,"taskCount":3,"shortlist":10,"latencyMs":2429}
+{"at":"2026-09-18T08:26:50.402Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T08:26:50.543Z","status":"skipped","reason":"no_api_key","latencyMs":1}
+{"at":"2026-09-18T08:49:13.491Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T08:49:13.619Z","status":"skipped","reason":"no_api_key","latencyMs":0}
+{"at":"2026-09-18T08:51:28.146Z","status":"skipped","reason":"no_api_key","latencyMs":3}
+{"at":"2026-09-18T08:51:28.387Z","status":"skipped","reason":"no_api_key","latencyMs":0}
+{"at":"2026-09-18T09:06:24.875Z","status":"skipped","reason":"no_api_key","latencyMs":2}
+{"at":"2026-09-18T09:06:24.987Z","status":"skipped","reason":"no_api_key","latencyMs":1}
+{"at":"2026-09-18T13:14:44.433Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":337,"outputTokens":368,"taskCount":3,"shortlist":4,"latencyMs":5961}
+{"at":"2026-09-18T13:15:41.746Z","status":"ok","model":"gemini-3.1-flash-lite","promptTokens":337,"outputTokens":333,"taskCount":3,"shortlist":4,"latencyMs":5582}

@@ -6,7 +6,9 @@
 // told exactly which numbers are demonstration data, because an explanation that quietly
 // launders a demo figure into a confident statement is worse than no explanation.
 
+import { createHash } from 'node:crypto'
 import { callGemini } from './gemini.js'
+import { query } from './db.js'
 import { requirementsFor, englishGap, DEMO_NOTICE } from '../src/data/admissionDemo.js'
 import { universities, cityById, FIELD_LABELS } from '../src/data/worldUniversities.js'
 
@@ -72,6 +74,37 @@ const profileLines = (profile, tests) => {
     lines.push('Exams: none recorded yet')
   }
   return lines
+}
+
+/**
+ * The advice depends only on these answers, so it is regenerated only when one of them moves.
+ * Two Gemini calls and six seconds on every visit to My matches is not a load-time problem to
+ * optimise away later — it is the page being unusable.
+ */
+export function adviceFingerprint(profile, tests = []) {
+  const parts = [
+    profile.destination, profile.degree, profile.field, profile.intake, profile.englishLevel,
+    ...tests.map(test => `${test.test_code}:${test.status}:${test.score ?? test.score_text ?? ''}`).sort(),
+  ]
+  return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32)
+}
+
+export async function readCachedAdvice(profile, fingerprint) {
+  const { rows } = await query(
+    'select diagnosis, matches from profile_advice where profile_id = $1 and fingerprint = $2',
+    [profile.id, fingerprint])
+  return rows[0] ? { diagnosis: rows[0].diagnosis, matches: rows[0].matches, cached: true } : null
+}
+
+export async function writeCachedAdvice(profile, fingerprint, { diagnosis, matches }) {
+  await query(
+    `insert into profile_advice (profile_id, fingerprint, diagnosis, matches, model)
+     values ($1, $2, $3, $4, $5)
+     on conflict (profile_id) do update set
+       fingerprint = excluded.fingerprint, diagnosis = excluded.diagnosis,
+       matches = excluded.matches, model = excluded.model, created_at = now()`,
+    [profile.id, fingerprint, JSON.stringify(diagnosis), JSON.stringify(matches),
+      diagnosis?.source?.model ?? null])
 }
 
 /** Stage 3: the profile read back, with strengths, gaps and the goal. */

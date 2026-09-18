@@ -5,12 +5,12 @@ import { register, login, logout, userForToken } from './auth.js'
 import { isReachable } from './db.js'
 import { createAdmissionPlan, handlePlanRequest } from './plan.js'
 import {
-  getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan,
+  getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan, setTaskDone,
   destinationOptions, fieldOptions, levelOptions, englishLevels,
 } from './profiles.js'
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
-import { diagnose, explainMatches } from './advisor.js'
+import { diagnose, explainMatches, adviceFingerprint, readCachedAdvice, writeCachedAdvice } from './advisor.js'
 import { shortlistUniversities } from '../src/data/worldUniversities.js'
 import { buildGraph } from '../src/services/planShape.js'
 import { readObjective, fields as FIELD_VOCAB } from '../src/services/planContext.js'
@@ -129,11 +129,27 @@ export async function route(request) {
         country: profile.destination, field: fieldTag,
         level: String(profile.degree).toLowerCase(), limit: 5,
       })
+      // Regenerated only when the answers it was built from change.
+      const fingerprint = adviceFingerprint(profile, tests)
+      const cached = await readCachedAdvice(profile, fingerprint)
+      if (cached) return json(200, cached)
+
       const [diagnosis, matches] = await Promise.all([
         diagnose({ apiKey, profile, tests }),
         explainMatches({ apiKey, profile, tests, shortlist }),
       ])
-      return json(200, { diagnosis, matches })
+      // A rules-only answer means the model was unreachable; caching it would freeze the
+      // fallback in place until the profile changes.
+      if (diagnosis.source?.kind === 'gemini') {
+        await writeCachedAdvice(profile, fingerprint, { diagnosis, matches }).catch(() => {})
+      }
+      return json(200, { diagnosis, matches, cached: false })
+    }
+
+    if (path === '/api/me/task' && method === 'POST') {
+      const result = await setTaskDone(me.id, parsed.position, Boolean(parsed.done))
+      if (result.error) return json(result.status, { error: result.error })
+      return json(200, { plan: rehydrate(result.plan, await getProfile(me.id)) })
     }
 
     if (path === '/api/me/tests' && method === 'GET') {

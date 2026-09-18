@@ -145,6 +145,40 @@ export async function savePlan(userId, { plan, objective }) {
   }
 }
 
+/**
+ * Ticking a task off. The status column existed from 001_schema.sql but nothing ever wrote
+ * to it, so a plan could be read and never advanced — the manager's "tasks don't complete".
+ * Completing one promotes the next still-open task to current, which is what makes the
+ * "one clear next step" of the brief actually move.
+ */
+export async function setTaskDone(userId, position, done) {
+  const profile = await getProfile(userId)
+  if (!profile) return { error: 'Complete your profile first', status: 409 }
+
+  const { rows } = await query(
+    `select id from roadmaps where profile_id = $1 and is_current order by created_at desc limit 1`,
+    [profile.id])
+  if (!rows[0]) return { error: 'No plan yet', status: 409 }
+
+  const index = Number(position)
+  if (!Number.isInteger(index) || index < 0) return { error: 'position must be a whole number', status: 400 }
+
+  const { rowCount } = await query(
+    `update roadmap_tasks set status = $3::task_status, completed_at = $4
+     where roadmap_id = $1 and position = $2`,
+    [rows[0].id, index, done ? 'done' : 'todo', done ? new Date() : null])
+  if (!rowCount) return { error: 'No such task', status: 404 }
+
+  // Exactly one task is in progress at a time: the first one still open.
+  await query(`update roadmap_tasks set status = 'todo' where roadmap_id = $1 and status = 'in_progress'`, [rows[0].id])
+  await query(
+    `update roadmap_tasks set status = 'in_progress'
+     where id = (select id from roadmap_tasks where roadmap_id = $1 and status = 'todo' order by position limit 1)`,
+    [rows[0].id])
+
+  return { plan: await getCurrentPlan(userId) }
+}
+
 /** The current plan, in the same shape the client already renders. */
 export async function getCurrentPlan(userId) {
   const profile = await getProfile(userId)
@@ -162,6 +196,7 @@ export async function getCurrentPlan(userId) {
 
   const tasks = taskRows.map((row, index) => ({
     id: `task-${index + 1}-${row.category}`,
+    position: row.position,
     type: row.category,
     title: row.title,
     shortTitle: row.short_title ?? row.title,
@@ -169,7 +204,9 @@ export async function getCurrentPlan(userId) {
     subtasks: row.subtasks ?? [],
     xp: row.xp ?? 0,
     due: row.due_label ?? '',
-    state: row.status === 'done' ? 'done' : index === 0 ? 'current' : 'locked',
+    // 'current' now comes from the stored status rather than the position, so completing a
+    // task actually moves the marker instead of leaving it on the first row forever.
+    state: row.status === 'done' ? 'done' : row.status === 'in_progress' ? 'current' : 'locked',
   }))
   if (!tasks.length) return null
 

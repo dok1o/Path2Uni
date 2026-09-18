@@ -22,6 +22,10 @@ export function normalizeTasks(rawTasks, { destination }) {
 
   return clean.map((task, index) => ({
     ...task,
+    // The client sends this back to tick a task off. getCurrentPlan() sets it from the stored
+    // column; setting it here too means a freshly generated plan is completable straight away
+    // rather than only after a reload.
+    position: index,
     state: index === 0 ? 'current' : 'locked',
     xp: XP_BY_TYPE[task.type],
     due: index === 0

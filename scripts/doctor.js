@@ -81,15 +81,19 @@ if (process.env.DATABASE_URL) {
   // Mask through the final @ in the authority: an unescaped @ in a bad password must not
   // leak the remainder while the doctor is explaining why the connection failed.
   console.log(ok(`DATABASE_URL set (${url.replace(/\/\/[^/]*@/, '//***@').slice(0, 72)}…)`))
+  // Which pooler is right depends on how the app is run, and neither breaks it. `pg` sends
+  // parameterised queries as UNNAMED prepared statements unless a `name` is passed, and
+  // nothing here passes one — so transaction pooling is fine. An earlier version of this
+  // check said the opposite; it was wrong.
   if (/:6543\//.test(url)) {
-    console.log(warn('That is the transaction pooler (port 6543)'))
-    console.log(hint('Transaction pooling drops prepared statements, and every parameterised'))
-    console.log(hint('query here is one. Use the session pooler instead.'))
+    console.log(hint('Transaction pooler (6543) — the right one for serverless, e.g. Vercel.'))
+  } else if (/pooler\.supabase\.com/.test(url)) {
+    console.log(hint('Session pooler — the right one for a long-running server, e.g. Render.'))
   }
   if (/^postgres(ql)?:\/\/[^@]*@db\./.test(url)) {
     console.log(warn('That looks like a Supabase DIRECT connection (db.<ref>.supabase.co)'))
     console.log(hint('Direct connections are IPv6-only and will time out from an IPv4 host'))
-    console.log(hint('such as a free Render instance. Use the session pooler string.'))
+    console.log(hint('such as a free Render instance. Use a pooler string instead.'))
   }
 }
 

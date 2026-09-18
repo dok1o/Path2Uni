@@ -10,7 +10,7 @@ npm run dev          # Vite dev server — also mounts the plan API at /api/ai/a
 npm run build        # production build into dist/ (gitignored — npm run server needs it built first)
 npm run preview      # serve the built bundle
 npm run server       # serves dist/ AND the API on :8787 — one origin, which is what cookie auth needs
-npm test             # 190 tests, no network (database tests skip themselves without Postgres)
+npm test             # 195 tests, no network (database tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
@@ -190,6 +190,14 @@ Map mechanics in [src/WorldMap.jsx](src/WorldMap.jsx):
 - `public/world-countries-110m.json` is the Natural Earth TopoJSON with an `iso` alpha-2 baked into each geometry's properties (3 of 177 have none: Kosovo, N. Cyprus, Somaliland). Both `public/` files are fetched at runtime, so they stay out of the bundle.
 - One `geoNaturalEarth1` projection, fitted once to a 960×500 box. **Zoom is a CSS transform on the `.map-zoom` group, not a reprojection** — that is what makes it animatable. Markers sit inside that group and counter-scale by `1/k` so they keep a constant on-screen size; strokes rely on `vector-effect: non-scaling-stroke`.
 - City names are hover-only. Dense clusters (northern Italy, the Randstad) overlap at any zoom because labels are counter-scaled to a fixed size — the sidebar city list is the discoverable path, not the map labels.
+
+## Two deployment shapes
+
+The same router serves both, which is the point of keeping [server/routes.js](server/routes.js) framework-agnostic — it is called by the standalone server, by the Vite dev middleware and by the serverless adapter.
+
+- **Long-running** ([render.yaml](render.yaml) → `npm start`): migrations run at boot, and [server/digest.js](server/digest.js) schedules itself with an in-process timer.
+- **Serverless** ([vercel.json](vercel.json) → [api/index.js](api/index.js)): there is no process to hold a timer, so the digest is a cron hitting `/api/cron` behind `CRON_SECRET`, and background work is handed to `waitUntil` so the response still returns immediately. **Nothing migrates the database** — the build does not run `npm start`, so `npm run migrate` has to be run once by hand against the same connection string.
+- **Either pooler works with Supabase.** `pg` sends parameterised queries as *unnamed* prepared statements unless a `name` is passed, and nothing here passes one, so transaction pooling does not break them. Session mode suits the long-running shape, transaction mode suits serverless. What does not work from an IPv4 host is the *direct* connection, which Supabase serves over IPv6 only — the symptom is a timeout that says nothing.
 
 ## Data layer (schema designed, mostly unused)
 

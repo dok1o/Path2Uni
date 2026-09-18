@@ -17,9 +17,11 @@
 #                   that says why. In Supabase: Project Settings -> Database -> Connection
 #                   string -> Session pooler.
 #
-#                   Session mode, not transaction mode (port 6543). Transaction pooling does
-#                   not keep prepared statements, and every parameterised query in this app
-#                   is one.
+#                   Session mode here, because this runs as one long-lived process with its
+#                   own pool. Transaction mode (6543) is for serverless, where many
+#                   short-lived instances would each hold a session open. Both work with this
+#                   app: `pg` sends parameterised queries as unnamed prepared statements, and
+#                   nothing here passes a statement name.
 #   npm start       Runs the migrations, then the server. Render's database starts empty and
 #                   has no equivalent of Docker's init directory.
 #   NODE_VERSION    This Vite needs styleText from node:util — 20.19+ or 22.12+.

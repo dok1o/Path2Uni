@@ -89,14 +89,26 @@ dashboard, so the deployment is something the next person can read.
    - Not the direct connection: Supabase serves it over IPv6 only, and Render's free
      instances have no IPv6. The app would never connect, and the symptom is a timeout
      rather than an error that says why.
-   - Not the transaction pooler on port 6543: it does not keep prepared statements, and
-     every parameterised query here is one. `npm run doctor` warns about both.
+   - Port 5432 on the pooler host (session mode) suits a long-running server; port 6543
+     (transaction mode) suits serverless. Both work here — `pg` sends parameterised queries
+     as unnamed prepared statements and nothing passes a statement name. `npm run doctor`
+     says which one it sees.
 2. **Render**: New → Blueprint → point it at this repository. It reads `render.yaml`.
 3. Fill in the secrets it asks for: `DATABASE_URL` (the string from step 1),
    `GEMINI_API_KEY`, `P2U_KEYS` and `P2U_INDEX_KEY` (`npm run keygen` prints the last two),
    and the `SMTP_*` values if you want sign-in codes and reminders.
 4. Deploy. `npm start` runs the migrations and then the server; Supabase starts empty and has
    no equivalent of Docker's init directory.
+
+**On Vercel** (`vercel.json` + `api/index.js`) the build does not run `npm start`, so nothing
+migrates the database for you. Run it once yourself against the same connection string:
+
+```bash
+DATABASE_URL='<the Supabase string>' npm run migrate
+```
+
+The daily digest there comes from the `/api/cron` schedule rather than an in-process timer, so
+`CRON_SECRET` has to be set or that endpoint refuses to run.
 
 Things worth knowing before the demo:
 

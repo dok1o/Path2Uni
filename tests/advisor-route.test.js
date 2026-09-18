@@ -12,7 +12,7 @@ const made = []
 test('My Matches returns a complete first result without waiting for the model', db, async () => {
   const username = `matches_${Math.random().toString(36).slice(2, 10)}`
   made.push(username)
-  const { user, session } = await register({ username, password:'a-good-passphrase' })
+  const { user, session } = await register({ username, password:'a-good-passphrase', email: `${username}@example.test` })
   await saveProfile(user.id, {
     destinations:['de', 'hu', 'it'], degree:'Bachelor', field:'Business & Management',
     intake:new Date().getFullYear() + 1, englishLevel:'C2',

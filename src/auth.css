@@ -98,3 +98,5 @@
 .privacy-sheet>footer small{font-size:10px;line-height:1.5;color:var(--muted);max-width:430px}
 .privacy-sheet>footer .button{width:auto;margin:0}
 @media(max-width:700px){.privacy-backdrop{padding:0}.privacy-sheet{max-height:100vh;border-radius:0}.privacy-sheet>footer{flex-direction:column;align-items:stretch}}
+.auth-card label>span i{font-style:normal;font-weight:400;text-transform:none;letter-spacing:0;color:#aeb3c4;margin-left:6px}
+.auth-code{font-size:26px!important;letter-spacing:.42em;text-align:center;font-weight:700}

@@ -69,7 +69,7 @@ history.
 
 | Stage | Where it lives |
 |---|---|
-| 1. Sign in | `src/Auth.jsx` — username and password, no email |
+| 1. Sign in | `src/Auth.jsx` — username and password, or an email and a six-digit code |
 | 2. Profile | `src/Onboarding.jsx` (up to 3 destinations, level, field, intake, English) and the exam step in `src/App.jsx`. **Edit profile** reopens it prefilled |
 | 3. Diagnosis | **My matches** — profile read back, strengths, gaps, goal |
 | 4. Recommendations | same page — each match with why it fits and what to check, drawn from every chosen country |

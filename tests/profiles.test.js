@@ -20,7 +20,7 @@ const made = []
 async function newUser() {
   const username = `test_${Math.random().toString(36).slice(2, 10)}`
   made.push(username)
-  const { user, session } = await register({ username, password: 'a-good-passphrase' })
+  const { user, session } = await register({ username, password: 'a-good-passphrase', email: `${username}@example.test` })
   return { user, session }
 }
 after(async () => {

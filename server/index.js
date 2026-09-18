@@ -8,6 +8,7 @@ import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import './env.js'
 import { route } from './routes.js'
+import { startDigestTimer } from './digest.js'
 
 const apiKey = process.env.GEMINI_API_KEY || null
 const port = Number(process.env.PORT || 8787)
@@ -70,5 +71,7 @@ createServer((request, response) => {
   })
 }).listen(port, () => {
   console.log(`path2uni on http://localhost:${port}`)
+  // Reminders and expired-code cleanup. Does nothing until SMTP is configured.
+  startDigestTimer()
   console.log(apiKey ? 'GEMINI_API_KEY loaded' : 'no GEMINI_API_KEY — plans fall back to the rule-based planner')
 })

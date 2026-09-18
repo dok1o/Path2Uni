@@ -1,8 +1,11 @@
 // One router shared by the Vite dev middleware and the standalone server, so there is a
 // single definition of every route and no chance of the two drifting apart.
 
-import { register, login, logout, userForToken } from './auth.js'
-import { isReachable } from './db.js'
+import { register, login, logout, userForToken, findByEmail, attachEmail, markEmailVerified, startSession, userById, publicUser } from './auth.js'
+import { createChallenge, useChallenge, looksLikeEmail, readEmail } from './challenges.js'
+import { sendMail, mailReady } from './mail.js'
+import { codeEmail } from './mailTemplates.js'
+import { isReachable, query as dbQuery } from './db.js'
 import { createAdmissionPlan, handlePlanRequest } from './plan.js'
 import {
   getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan, setTaskDone, MAX_DESTINATIONS,
@@ -72,6 +75,28 @@ const reply = (status, body, headers = {}) => ({ status, body, headers })
  * @param {{method:string, path:string, body:string, cookie:string, userAgent:string, apiKey:string|null}} request
  * @returns {Promise<{status:number, body:object, headers?:object}>}
  */
+/** Never print a whole address back: enough to recognise, not enough to harvest. */
+const maskEmail = address => {
+  if (!address || !address.includes('@')) return ''
+  const [name, domain] = address.split('@')
+  const head = name.slice(0, 2)
+  return `${head}${'•'.repeat(Math.max(1, name.length - 2))}@${domain}`
+}
+
+/**
+ * Sends the code, and never lets a mail failure break the request that created it. The code
+ * is only ever in memory here — it is not logged, and in development, with no SMTP
+ * configured, it is returned so the flow can be finished without a mail server.
+ */
+async function deliverCode(challenge, purpose, lang) {
+  const message = codeEmail({ code: challenge.code, purpose, lang })
+  const result = await sendMail({ to: challenge.email, subject: message.subject, text: message.text })
+  if (!result.sent && process.env.NODE_ENV !== 'production' && !mailReady()) {
+    console.log(`[path2uni] no SMTP configured — code for ${maskEmail(challenge.email)} is ${challenge.code}`)
+  }
+  return result
+}
+
 const LANGS = new Set(['ru', 'kk', 'en'])
 /** The interface language, from the query string or the body. Anything unknown means English. */
 const readLang = (query, parsed) => {
@@ -103,7 +128,87 @@ export async function route(request) {
     if (path === '/api/auth/login' && method === 'POST') {
       const result = await login({ ...parsed, userAgent })
       if (result.error) return json(result.status, { error: result.error, field: result.field })
+      // With a second factor on, the password alone opens a challenge, never a session.
+      if (result.needsSecondFactor) {
+        const challenge = await createChallenge({ userId: result.userId, purpose: 'login', emailCipher: result.emailCipher })
+        if (challenge.error) return json(challenge.status, { error: challenge.error })
+        await deliverCode(challenge, 'login', readLang(query, parsed))
+        return json(200, { needsCode: true, token: challenge.token, hint: maskEmail(challenge.email) })
+      }
       return json(200, { user: result.user }, { 'Set-Cookie': sessionCookie(result.session, secure) })
+    }
+
+    // Passwordless: an address, then the code that arrives at it.
+    if (path === '/api/auth/email-code' && method === 'POST') {
+      const address = typeof parsed.email === 'string' ? parsed.email.trim() : ''
+      if (!looksLikeEmail(address)) return json(400, { error: 'Enter an email address we can reach you at.' })
+      const row = await findByEmail(address)
+      // The answer is identical whether or not an account exists, for the same reason
+      // server/auth.js burns a decoy hash: the response must not be an account oracle.
+      if (!row || !row.email_verified_at) {
+        return json(200, { needsCode: true, token: null, hint: maskEmail(address) })
+      }
+      const challenge = await createChallenge({ userId: row.id, purpose: 'login', emailCipher: row.email_cipher })
+      if (challenge.error) return json(challenge.status, { error: challenge.error })
+      await deliverCode(challenge, 'login', readLang(query, parsed))
+      return json(200, { needsCode: true, token: challenge.token, hint: maskEmail(address) })
+    }
+
+    if (path === '/api/auth/verify' && method === 'POST') {
+      // A null token is what an unknown address produced above; it must fail like a wrong
+      // code rather than like a missing account.
+      const used = await useChallenge({ token: parsed.token, code: parsed.code, purpose: 'login' })
+      if (used.error) return json(used.status, { error: used.error, vars: used.vars })
+      const session = await startSession(used.userId, userAgent)
+      const row = await userById(used.userId)
+      return json(200, { user: publicUser(row) }, { 'Set-Cookie': sessionCookie(session, secure) })
+    }
+
+    if (path === '/api/me/email' && method === 'PUT') {
+      const me = await userForToken(readCookie(cookie))
+      if (!me) return json(401, { error: 'Sign in first' })
+      const changed = await attachEmail(me.id, parsed.email)
+      if (changed.error) return json(changed.status, { error: changed.error })
+      return json(200, { user: publicUser(await userById(me.id)) })
+    }
+
+    // Prove the address on the account belongs to whoever is holding it.
+    if (path === '/api/me/email/confirm' && method === 'POST') {
+      const me = await userForToken(readCookie(cookie))
+      if (!me) return json(401, { error: 'Sign in first' })
+      const row = await userById(me.id)
+      if (!row?.email_cipher) return json(409, { error: 'Add an email address first.' })
+
+      if (parsed.code) {
+        const used = await useChallenge({ token: parsed.token, code: parsed.code, purpose: 'verify_email' })
+        if (used.error) return json(used.status, { error: used.error, vars: used.vars })
+        if (used.userId !== me.id) return json(403, { error: 'That code belongs to another account.' })
+        await markEmailVerified(me.id, used.emailCipher)
+        return json(200, { user: publicUser(await userById(me.id)) })
+      }
+
+      const challenge = await createChallenge({ userId: me.id, purpose: 'verify_email', emailCipher: row.email_cipher })
+      if (challenge.error) return json(challenge.status, { error: challenge.error })
+      const delivery = await deliverCode(challenge, 'verify_email', readLang(query, parsed))
+      return json(200, { token: challenge.token, hint: maskEmail(challenge.email), delivered: delivery.sent, reason: delivery.reason })
+    }
+
+    if (path === '/api/me/settings' && method === 'PUT') {
+      const me = await userForToken(readCookie(cookie))
+      if (!me) return json(401, { error: 'Sign in first' })
+      const row = await userById(me.id)
+      // Both switches need a confirmed address: a second factor pointing at an unproven
+      // address locks people out of their own accounts, and reminders go nowhere.
+      if ((parsed.twoFactorEnabled || parsed.notifyByEmail) && !row?.email_verified_at) {
+        return json(409, { error: 'Confirm your email address first.' })
+      }
+      await dbQuery(
+        `update users set two_factor_enabled = coalesce($2, two_factor_enabled),
+                          notify_by_email = coalesce($3, notify_by_email), updated_at = now()
+         where id = $1`,
+        [me.id, typeof parsed.twoFactorEnabled === 'boolean' ? parsed.twoFactorEnabled : null,
+          typeof parsed.notifyByEmail === 'boolean' ? parsed.notifyByEmail : null])
+      return json(200, { user: publicUser(await userById(me.id)) })
     }
 
     if (path === '/api/auth/logout' && method === 'POST') {

@@ -13,7 +13,8 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, createHash } from 'node:crypto'
 import { promisify } from 'node:util'
 import { query } from './db.js'
-import { encrypt, encryptionReady } from './crypto.js'
+import { encrypt, encryptionReady, blindIndex } from './crypto.js'
+import { storeEmail, readEmail, looksLikeEmail } from './challenges.js'
 
 const scrypt = promisify(scryptCallback)
 
@@ -24,6 +25,11 @@ const MAXMEM = 128 * 1024 * 1024
 const SESSION_DAYS = 30
 const MAX_FAILED = 8
 const LOCK_MINUTES = 15
+
+const EMAIL_CONTEXT = 'users.email'
+
+/** Lowercased, so the same address always produces the same index. */
+export const emailIndexOf = address => blindIndex(String(address).trim().toLowerCase(), EMAIL_CONTEXT)
 
 export const USERNAME_RULES = '3–32 characters: letters, numbers, dot, dash or underscore'
 export const PASSWORD_RULES = 'at least 8 characters'
@@ -67,27 +73,78 @@ const publicUser = row => ({
   username: row.username,
   displayName: row.display_name,
   createdAt: row.created_at,
+  email: readEmail(row.email_cipher),
+  emailVerified: Boolean(row.email_verified_at),
+  twoFactorEnabled: Boolean(row.two_factor_enabled),
+  notifyByEmail: Boolean(row.notify_by_email),
 })
 
-export async function register({ username, password, displayName, userAgent }) {
+export { publicUser }
+
+export async function register({ username, password, displayName, email, userAgent }) {
   if (!usernameOk(username)) return { error: `Username must be ${USERNAME_RULES}.`, status: 400, field: 'username' }
   if (!passwordOk(password)) return { error: `Password must be ${PASSWORD_RULES}.`, status: 400, field: 'password' }
+  if (!looksLikeEmail(email)) return { error: 'Enter an email address we can reach you at.', status: 400, field: 'email' }
 
   const password_hash = await hashPassword(password)
   let row
   try {
     const result = await query(
-      `insert into users (username, password_hash, password_updated_at, display_name)
-       values ($1, $2, now(), $3)
-       returning id, username, display_name, created_at`,
-      [username, password_hash, (displayName || username).slice(0, 80)])
+      `insert into users (username, password_hash, password_updated_at, display_name, email_cipher, email_index)
+       values ($1, $2, now(), $3, $4, $5)
+       returning id, username, display_name, created_at, email_cipher, email_verified_at, two_factor_enabled, notify_by_email`,
+      [username, password_hash, (displayName || username).slice(0, 80), storeEmail(email), emailIndexOf(email)])
     row = result.rows[0]
   } catch (error) {
-    // 23505 is unique_violation — the handle is taken.
-    if (error.code === '23505') return { error: 'That username is already taken.', status: 409, field: 'username' }
+    // 23505 is unique_violation — the handle, or the address, is taken.
+    if (error.code === '23505') {
+      return String(error.detail || '').includes('email_index')
+        ? { error: 'That email already has an account. Sign in instead.', status: 409, field: 'email' }
+        : { error: 'That username is already taken.', status: 409, field: 'username' }
+    }
     throw error
   }
+  // The account exists straight away and the address is confirmed afterwards. Blocking
+  // account creation on a delivered email would mean nobody can sign up while SMTP is
+  // misconfigured, and an admission plan is not worth less because a message was slow.
   return { user: publicUser(row), session: await openSession(row.id, userAgent) }
+}
+
+/** The account behind an address, or null. Never says which it was — see requestEmailCode. */
+export async function findByEmail(address) {
+  if (!looksLikeEmail(address)) return null
+  const { rows } = await query(
+    `select id, username, display_name, created_at, email_cipher, email_verified_at, two_factor_enabled, notify_by_email
+     from users where email_index = $1`, [emailIndexOf(address)])
+  return rows[0] ?? null
+}
+
+export async function attachEmail(userId, address) {
+  if (!looksLikeEmail(address)) return { error: 'Enter an email address we can reach you at.', status: 400 }
+  try {
+    await query(
+      `update users set email_cipher = $2, email_index = $3, email_verified_at = null, updated_at = now()
+       where id = $1`, [userId, storeEmail(address), emailIndexOf(address)])
+  } catch (error) {
+    if (error.code === '23505') return { error: 'That email already has an account. Sign in instead.', status: 409 }
+    throw error
+  }
+  return { ok: true }
+}
+
+export async function markEmailVerified(userId, emailCipher) {
+  await query('update users set email_verified_at = now(), email_cipher = coalesce($2, email_cipher) where id = $1',
+    [userId, emailCipher ?? null])
+}
+
+/** Used after a verified second factor, and after a verified passwordless code. */
+export const startSession = (userId, userAgent) => openSession(userId, userAgent)
+
+export async function userById(id) {
+  const { rows } = await query(
+    `select id, username, display_name, created_at, email_cipher, email_verified_at, two_factor_enabled, notify_by_email
+     from users where id = $1`, [id])
+  return rows[0] ?? null
 }
 
 export async function login({ username, password, userAgent }) {
@@ -95,7 +152,8 @@ export async function login({ username, password, userAgent }) {
   if (typeof username !== 'string' || typeof password !== 'string') return wrong
 
   const { rows } = await query(
-    `select id, username, display_name, created_at, password_hash, locked_until
+    `select id, username, display_name, created_at, password_hash, locked_until,
+            email_cipher, email_verified_at, two_factor_enabled, notify_by_email
      from users where username = $1`, [username])
   const row = rows[0]
 
@@ -117,6 +175,11 @@ export async function login({ username, password, userAgent }) {
   }
 
   await query('update users set failed_login_count = 0, locked_until = null where id = $1', [row.id])
+  // A second factor is only honoured once the address behind it has been confirmed —
+  // otherwise a typo at sign-up would lock someone out of their own account for good.
+  if (row.two_factor_enabled && row.email_verified_at && row.email_cipher) {
+    return { needsSecondFactor: true, userId: row.id, emailCipher: row.email_cipher }
+  }
   return { user: publicUser(row), session: await openSession(row.id, userAgent) }
 }
 
@@ -139,7 +202,8 @@ async function openSession(userId, userAgent) {
 export async function userForToken(token) {
   if (typeof token !== 'string' || !token) return null
   const { rows } = await query(
-    `select u.id, u.username, u.display_name, u.created_at
+    `select u.id, u.username, u.display_name, u.created_at, u.email_cipher, u.email_verified_at,
+            u.two_factor_enabled, u.notify_by_email
      from sessions s join users u on u.id = s.user_id
      where s.token_hash = $1 and s.expires_at > now()`, [tokenHash(token)])
   if (!rows[0]) return null

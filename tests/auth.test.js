@@ -57,7 +57,7 @@ test('a malformed or missing digest verifies as false, never throws', async () =
 
 test('registration rejects a bad username before touching the database', db, async () => {
   for (const username of ['', 'ab', 'a'.repeat(33), 'has space', 'em@il', 'слово', null, 42]) {
-    const result = await register({ username, password: PASSWORD })
+    const result = await register({ username, password: PASSWORD, email: `${username}@example.test` })
     assert.equal(result.status, 400, `accepted username ${JSON.stringify(username)}`)
     assert.equal(result.field, 'username')
   }
@@ -65,7 +65,7 @@ test('registration rejects a bad username before touching the database', db, asy
 
 test('registration rejects a short password', db, async () => {
   for (const password of ['', '1234567', null, 42, 'x'.repeat(201)]) {
-    const result = await register({ username: fresh(), password })
+    const result = await register({ username: fresh(), password, email: `${Math.random().toString(36).slice(2)}@example.test` })
     assert.equal(result.status, 400, `accepted password of length ${String(password).length}`)
     assert.equal(result.field, 'password')
   }
@@ -73,7 +73,7 @@ test('registration rejects a short password', db, async () => {
 
 test('registering returns a user and an opaque session', db, async () => {
   const username = fresh()
-  const result = await register({ username, password: PASSWORD, displayName: 'Test Person' })
+  const result = await register({ username, password: PASSWORD, displayName: 'Test Person', email: `${username}@example.test` })
   assert.equal(result.error, undefined)
   assert.equal(result.user.username, username)
   assert.equal(result.user.displayName, 'Test Person')
@@ -84,25 +84,32 @@ test('registering returns a user and an opaque session', db, async () => {
 
 test('the username is taken case-insensitively', db, async () => {
   const username = fresh()
-  await register({ username, password: PASSWORD })
-  const clash = await register({ username: username.toUpperCase(), password: PASSWORD })
+  await register({ username, password: PASSWORD, email: `${username}@example.test` })
+  const clash = await register({ username: username.toUpperCase(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   assert.equal(clash.status, 409)
   assert.equal(clash.field, 'username')
 })
 
 test('no response object ever carries a password or its hash', db, async () => {
-  const result = await register({ username: fresh(), password: PASSWORD })
+  const result = await register({ username: fresh(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   const text = JSON.stringify(result.user)
   assert.ok(!text.includes(PASSWORD), 'the password came back to the caller')
   assert.ok(!/scrypt\$/.test(text), 'the hash came back to the caller')
-  assert.deepEqual(Object.keys(result.user).sort(), ['createdAt', 'displayName', 'id', 'username'])
+  assert.deepEqual(Object.keys(result.user).sort(),
+    ['createdAt', 'displayName', 'email', 'emailVerified', 'id', 'notifyByEmail', 'twoFactorEnabled', 'username'])
+  // The shape is allowed to grow; a secret is never allowed in. This part of the test is the
+  // reason it exists, and it keeps working when a new field is added.
+  for (const key of Object.keys(result.user)) {
+    assert.ok(!/password|hash|cipher|token|secret/i.test(key), `${key} has no business in a response`)
+  }
+  assert.ok(!/p2u\.\d\./.test(text), 'a ciphertext came back to the caller')
 })
 
 // ---------- login ----------
 
 test('login accepts the right password and rejects the wrong one', db, async () => {
   const username = fresh()
-  await register({ username, password: PASSWORD })
+  await register({ username, password: PASSWORD, email: `${username}@example.test` })
   assert.equal((await login({ username, password: PASSWORD })).user.username, username)
   assert.equal((await login({ username, password: PASSWORD + '!' })).status, 401)
   assert.equal((await login({ username: username.toUpperCase(), password: PASSWORD })).user.username, username)
@@ -110,7 +117,7 @@ test('login accepts the right password and rejects the wrong one', db, async () 
 
 test('a missing account and a wrong password are indistinguishable', db, async () => {
   const username = fresh()
-  await register({ username, password: PASSWORD })
+  await register({ username, password: PASSWORD, email: `${username}@example.test` })
   const missing = await login({ username: 'no_such_account_here', password: PASSWORD })
   const wrong = await login({ username, password: 'not-the-password' })
   assert.equal(missing.error, wrong.error)
@@ -126,7 +133,7 @@ test('login survives non-string input', db, async () => {
 
 test('repeated failures lock the account, and the lock is reported', db, async () => {
   const username = fresh()
-  await register({ username, password: PASSWORD })
+  await register({ username, password: PASSWORD, email: `${username}@example.test` })
   let locked = null
   for (let i = 0; i < 9; i += 1) {
     const result = await login({ username, password: 'wrong-one' })
@@ -140,7 +147,7 @@ test('repeated failures lock the account, and the lock is reported', db, async (
 
 test('a successful login clears the failure counter', db, async () => {
   const username = fresh()
-  await register({ username, password: PASSWORD })
+  await register({ username, password: PASSWORD, email: `${username}@example.test` })
   await login({ username, password: 'wrong-one' })
   await login({ username, password: 'wrong-one' })
   assert.ok((await login({ username, password: PASSWORD })).user)
@@ -152,7 +159,7 @@ test('a successful login clears the failure counter', db, async () => {
 // ---------- sessions ----------
 
 test('the database stores a hash of the token, never the token', db, async () => {
-  const { session, user } = await register({ username: fresh(), password: PASSWORD })
+  const { session, user } = await register({ username: fresh(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   const { rows } = await query('select token_hash from sessions where user_id = $1', [user.id])
   assert.equal(rows.length, 1)
   assert.notEqual(rows[0].token_hash, session.token, 'the raw token is sitting in the database')
@@ -160,7 +167,7 @@ test('the database stores a hash of the token, never the token', db, async () =>
 })
 
 test('a token resolves to its user and a bad one resolves to nothing', db, async () => {
-  const { session, user } = await register({ username: fresh(), password: PASSWORD })
+  const { session, user } = await register({ username: fresh(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   assert.equal((await userForToken(session.token)).id, user.id)
   for (const bad of [null, undefined, '', 'not-a-token', session.token + 'x', 42]) {
     assert.equal(await userForToken(bad), null, `accepted token ${JSON.stringify(bad)}`)
@@ -169,7 +176,7 @@ test('a token resolves to its user and a bad one resolves to nothing', db, async
 
 test('logging out revokes that session and leaves the others alone', db, async () => {
   const username = fresh()
-  const first = await register({ username, password: PASSWORD })
+  const first = await register({ username, password: PASSWORD, email: `${username}@example.test` })
   const second = await login({ username, password: PASSWORD })
   await logout(first.session.token)
   assert.equal(await userForToken(first.session.token), null, 'the signed-out session still works')
@@ -177,7 +184,7 @@ test('logging out revokes that session and leaves the others alone', db, async (
 })
 
 test('expired sessions stop working and can be swept', db, async () => {
-  const { session, user } = await register({ username: fresh(), password: PASSWORD })
+  const { session, user } = await register({ username: fresh(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   await query('update sessions set expires_at = now() - interval \'1 hour\' where user_id = $1', [user.id])
   assert.equal(await userForToken(session.token), null, 'an expired session still resolved')
   await sweepSessions()
@@ -186,7 +193,7 @@ test('expired sessions stop working and can be swept', db, async () => {
 })
 
 test('deleting a user takes their sessions with them', db, async () => {
-  const { session, user } = await register({ username: fresh(), password: PASSWORD })
+  const { session, user } = await register({ username: fresh(), password: PASSWORD, email: `${Math.random().toString(36).slice(2)}@example.test` })
   await query('delete from users where id = $1', [user.id])
   assert.equal(await userForToken(session.token), null)
   const { rows } = await query('select 1 from sessions where user_id = $1', [user.id])
@@ -200,7 +207,7 @@ const call = (path, { method = 'POST', body = {}, cookie = '' } = {}) =>
 
 test('the cookie is httpOnly, scoped and not readable by scripts', db, async () => {
   const username = fresh()
-  const response = await call('/api/auth/register', { body: { username, password: PASSWORD } })
+  const response = await call('/api/auth/register', { body: { username, password: PASSWORD , email: `${username}@example.test` } })
   assert.equal(response.status, 201)
   const cookie = response.headers['Set-Cookie']
   assert.match(cookie, /HttpOnly/)
@@ -217,7 +224,7 @@ test('/api/auth/me is 200 with a null user when signed out', db, async () => {
 
 test('a full register, me, logout, me cycle over the router', db, async () => {
   const username = fresh()
-  const registered = await call('/api/auth/register', { body: { username, password: PASSWORD, displayName: 'Round Trip' } })
+  const registered = await call('/api/auth/register', { body: { username, password: PASSWORD, displayName: 'Round Trip' , email: `${username}@example.test` } })
   const token = readCookie(registered.headers['Set-Cookie'].split(';')[0])
   const cookie = `p2u_session=${token}`
 
@@ -269,14 +276,14 @@ test('a signed-in session over TLS gets a Secure cookie', db, async () => {
   const username = fresh()
   const response = await route({
     method: 'POST', path: '/api/auth/register', cookie: '', secure: true, apiKey: null,
-    body: JSON.stringify({ username, password: PASSWORD }),
+    body: JSON.stringify({ username, password: PASSWORD, email: `${username}@example.test` }),
   })
   assert.match(response.headers['Set-Cookie'], /; Secure/)
 })
 
 test('the user agent is stored encrypted, not in the clear', db, async () => {
   const marker = 'SecretBrowser/9.9 (device fingerprint)'
-  const { user } = await register({ username: fresh(), password: PASSWORD, userAgent: marker })
+  const { user } = await register({ username: fresh(), password: PASSWORD, userAgent: marker, email: `${Math.random().toString(36).slice(2)}@example.test` })
   const { rows } = await query('select user_agent from sessions where user_id = $1', [user.id])
   assert.ok(rows[0].user_agent, 'nothing was stored at all')
   assert.ok(!rows[0].user_agent.includes('SecretBrowser'), 'the user agent is sitting in the clear')

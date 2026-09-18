@@ -15,7 +15,7 @@ const made = []
 async function newUser({ withProfile = true } = {}) {
   const username = `test_${Math.random().toString(36).slice(2, 10)}`
   made.push(username)
-  const { user, session } = await register({ username, password: 'a-good-passphrase' })
+  const { user, session } = await register({ username, password: 'a-good-passphrase', email: `${username}@example.test` })
   if (withProfile) await saveProfile(user.id, { destination: 'hu', degree: 'Bachelor', field: 'Medicine', intake: new Date().getFullYear() + 1, englishLevel: 'B2' })
   return { user, session }
 }

@@ -411,3 +411,20 @@
 .essay-share{width:100%;margin-top:13px;justify-content:center}
 .essay-consent{display:block;margin-top:7px;font-size:9px;line-height:1.5;color:#8a91a3;text-align:center}
 .essay-count{margin-top:11px;font-size:10px;color:#8a91a3;text-align:right}
+.account-security{display:grid;gap:18px}
+.security-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.security-row label{display:grid;gap:6px;flex:1;min-width:230px}
+.security-row label>span{font-size:10px;font-weight:700;color:#777f95;text-transform:uppercase;letter-spacing:.06em}
+.security-row input{width:100%;border:1px solid #dfe2eb;border-radius:11px;padding:11px 12px;outline:none;color:var(--ink);background:#fff}
+.security-row input:focus{border-color:#8877df;box-shadow:0 0 0 3px #efecff}
+.security-row .button{width:auto;margin:0;white-space:nowrap}
+.security-badge{padding:10px 14px;border-radius:11px;font-size:12px;font-weight:700}
+.security-badge.ok{background:#e2f6ea;color:#2f8158}
+.security-notice{font-size:12px;color:var(--muted)}
+.security-notice.bad{color:#a8455a}
+.security-switches{display:grid;gap:11px}
+.security-switches label{display:flex;gap:11px;align-items:flex-start;padding:15px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.security-switches label.locked{opacity:.55}
+.security-switches input{width:17px;height:17px;flex:none;margin-top:2px;accent-color:var(--purple)}
+.security-switches b{display:block;font-size:13px}
+.security-switches small{display:block;margin-top:4px;font-size:11px;line-height:1.5;color:var(--muted)}

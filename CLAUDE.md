@@ -10,7 +10,7 @@ npm run dev          # Vite dev server — also mounts the plan API at /api/ai/a
 npm run build        # production build into dist/ (gitignored — npm run server needs it built first)
 npm run preview      # serve the built bundle
 npm run server       # serves dist/ AND the API on :8787 — one origin, which is what cookie auth needs
-npm test             # 180 tests, no network (database tests skip themselves without Postgres)
+npm test             # 190 tests, no network (database tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
@@ -129,13 +129,24 @@ Five things sit on top of the plan. What unites them is what each refuses to say
 
 ## Accounts
 
-Username and password, no email. [database/core/003_auth.sql](database/core/003_auth.sql) added what `001_schema.sql` left out — the original `users` table had an email and a display name but no credentials at all.
+Username and password, plus an address — 014 and 015 added what 003 deliberately left out. [database/core/003_auth.sql](database/core/003_auth.sql) added what `001_schema.sql` left out — the original `users` table had an email and a display name but no credentials at all.
 
 - **[server/auth.js](server/auth.js) is the whole security surface.** scrypt from `node:crypto`; the cost parameters live inside the digest (`scrypt$N$r$p$salt$hash`) so they can be raised without a migration. `timingSafeEqual` everywhere, and a decoy hash burned when the username does not exist — a missing account and a wrong password take the same time and return the same message.
 - **`verifyPassword` validates the digest's shape before doing any work.** An empty digest derives a zero-length key, and `timingSafeEqual` of two empty buffers is *true* — a planted `scrypt$$$$$` row would otherwise accept any password. [004_auth_hardening.sql](database/core/004_auth_hardening.sql) makes such a row unstorable too. Do not relax either check.
 - **Sessions are opaque and server-side.** The cookie holds a random token; `sessions.token_hash` holds only its sha256, so a database dump cannot be replayed as a login. The cookie is `HttpOnly; SameSite=Lax` — add `Secure` when this runs behind TLS.
 - **The API is same-origin by design.** `npm run server` serves `dist/` as well as `/api/*`. A wildcard `Access-Control-Allow-Origin` cannot carry credentials, so a cross-origin split would need an explicit allowlist; `tests/api.test.js` asserts no CORS header is advertised.
 - Eight wrong passwords lock an account for 15 minutes. The lock is checked *before* any password work, so it cannot be used to time-probe.
+
+### Email, codes and the second factor
+
+- **An address is required at sign-up but an account is never blocked on delivery.** If registration waited for a confirmed email, nobody could sign up while SMTP was misconfigured. The row is created, the session is issued, and the address is confirmed afterwards; the two switches that depend on it stay locked until it is.
+- **The second factor is honoured only for a *confirmed* address.** Otherwise a typo at sign-up locks somebody out of their own account permanently.
+- **`/api/auth/email-code` answers identically for an unknown address** — `needsCode: true` with a null token — for the same reason [server/auth.js](server/auth.js) burns a decoy hash. The endpoint must not be an oracle for which addresses have accounts.
+- **The code is never stored, only its sha256**, exactly like `sessions.token_hash`. Single use, ten minutes, five attempts, one resend a minute. `tests/challenges.test.js` pins every one of those.
+- **The address is encrypted** (context `users.email`) with a `blindIndex` companion column for lookup and uniqueness — the one place in this app where a deterministic index is justified, and it has its own key.
+- **[server/mail.js](server/mail.js) speaks SMTP directly** rather than adding a dependency: the server side has exactly one (`pg`), and one more means every teammate needs a successful `npm install` before the app runs at all. It degrades like the Gemini key — with nothing configured, `sendMail` reports it did not send and the caller carries on, and in development the code is printed to the server log so the flow can still be finished.
+- **Gmail needs an App Password**, which only exists once 2-Step Verification is on for that Google account. The account password has not worked since 2022.
+- **The digest ([server/digest.js](server/digest.js)) sends nothing when there is nothing to act on.** A mail that says "nothing to report" teaches people to stop opening it, and `info` notices never qualify. One a day at most, in the reader's own timezone, and only a delivered message stamps the day — a failed send must be retried, not swallowed.
 
 `App` gates on `/api/auth/me`: `user === undefined` means the answer has not arrived yet, `null` means signed out. Every hook runs before that early return — do not move the gate above them.
 

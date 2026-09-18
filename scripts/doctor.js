@@ -64,6 +64,17 @@ if (!process.env.P2U_KEYS) {
   console.log(ok('Encryption keys set'))
 }
 
+// --- mail ---
+if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  console.log(warn('SMTP is not configured — sign-in codes and reminders will not be sent'))
+  console.log(hint('Everything else works. Without it the second factor cannot be turned on,'))
+  console.log(hint('and in development the code is printed to the server log so you can carry on.'))
+  console.log(hint('Gmail needs an App Password, not the account password:'))
+  console.log(hint('  Google account -> 2-Step Verification -> App passwords'))
+} else {
+  console.log(ok(`SMTP set (${process.env.SMTP_USER})`))
+}
+
 // --- Docker and the database ---
 let dockerUp = false
 try { execSync('docker info', { stdio: 'ignore' }); dockerUp = true; console.log(ok('Docker is running')) }
@@ -80,6 +91,8 @@ if (dockerUp) {
               count(*) filter (where table_name = 'profile_advice') as m007,
               count(*) filter (where table_name = 'applicant_profiles'
                                 and column_name = 'target_countries') as m008,
+              count(*) filter (where table_name = 'users' and column_name = 'email_cipher') as m014,
+              count(*) filter (where table_name = 'users' and column_name = 'email_index') as m015,
               count(*) filter (where table_name = 'user_activity_days') as m012,
               count(*) filter (where table_name = 'user_xp_events') as m013
          from information_schema.columns where table_schema = 'public'`)

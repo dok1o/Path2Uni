@@ -16,7 +16,7 @@ const made = []
 async function newUser() {
   const username = `test_${Math.random().toString(36).slice(2, 10)}`
   made.push(username)
-  return register({ username, password: 'a-good-passphrase' })
+  return register({ username, password: 'a-good-passphrase', email: `${username}@example.test` })
 }
 after(async () => {
   if (up && made.length) await query('delete from users where username = any($1)', [made])

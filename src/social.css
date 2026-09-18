@@ -56,7 +56,8 @@
 
 .osint-backlink span { padding-left: 11px; border-left: 1px solid #d6d0ef; color: #8a81ae; font-size: 8px; }
 
-.social-city-scene { overflow: auto; }
+.social-city-scene{overflow:auto;background:#292c45;isolation:isolate}.social-city-scene>.city-back,.social-city-scene>.city-title,.social-city-scene>.city-universities{position:relative;z-index:2}.social-city-scene>.city-title{color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.45)}.social-city-scene>.city-title p,.social-city-scene>.city-title .eyebrow{color:rgba(255,255,255,.88)}
+.city-photo-backdrop{position:absolute;z-index:0;inset:0;background-position:center;background-size:cover;transition:background-image .35s ease}.city-photo-backdrop:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,23,43,.16) 0,rgba(20,23,43,.28) 35%,rgba(245,245,252,.9) 68%,#f9f8ff 100%)}.city-photo-backdrop a{position:absolute;z-index:1;right:12px;top:12px;padding:5px 7px;border-radius:7px;background:rgba(20,22,41,.48);color:#fff;font-size:7px;text-decoration:none;backdrop-filter:blur(6px)}
 .social-uni-card { position: relative; padding-right: 52px; overflow: visible; }
 .social-uni-card.is-saved { border-color: #e7c65b; background: linear-gradient(100deg,#fffdf4,#fff); }
 .uni-card-main { min-width: 0; }

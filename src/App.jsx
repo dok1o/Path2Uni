@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { Background, Controls, Handle, MiniMap, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import mascot from './assets/leo-mascot.png'
+import cityFallback from './assets/cities/city-fallback.png'
 import { admissionProfile, cloneAdmissionPlan } from './data/admissionGraph.js'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
 import { generateAdmissionPlan } from './services/roadmapAI.js'
@@ -273,6 +274,27 @@ function CountryFlag({ country }) {
   return <i className={`flag flag-${country.id}`} aria-hidden="true" />
 }
 
+const cityImageCache = new Map()
+function CityBackdrop({ city }) {
+  const [image,setImage]=useState(()=>cityImageCache.get(city)?.image||cityFallback)
+  const [source,setSource]=useState(()=>cityImageCache.get(city)?.source||'')
+  useEffect(()=>{
+    let active=true
+    const cached=cityImageCache.get(city)
+    if(cached){setImage(cached.image);setSource(cached.source);return()=>{active=false}}
+    setImage(cityFallback);setSource('')
+    const params=new URLSearchParams({action:'query',format:'json',origin:'*',prop:'pageimages|info',inprop:'url',piprop:'thumbnail',pithumbsize:'1600',titles:city})
+    fetch(`https://en.wikipedia.org/w/api.php?${params}`).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
+      const page=Object.values(data.query?.pages||{})[0]
+      if(!active||!page?.thumbnail?.source)return
+      const result={image:page.thumbnail.source,source:page.fullurl||''}
+      cityImageCache.set(city,result);setImage(result.image);setSource(result.source)
+    }).catch(()=>{})
+    return()=>{active=false}
+  },[city])
+  return <div className="city-photo-backdrop" style={{backgroundImage:`url("${image}")`}}>{source&&<a href={source} target="_blank" rel="noreferrer">Photo: Wikimedia</a>}</div>
+}
+
 function CountryFlagPattern({ country }) {
   const id = `country-flag-${country.id}`
   const patternProps = { id, width: '1', height: '1', patternUnits: 'objectBoundingBox', patternContentUnits: 'objectBoundingBox' }
@@ -354,7 +376,7 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
     <section className="country-head"><div><span className="eyebrow purple">EXPLORE YOUR DESTINATION</span><h1>{city ? `${city.name}, ${country.name}` : `${country.name} map`}</h1><p>{city ? city.note : 'Explore accurate country contours, map out university cities and build a shortlist.'}</p></div><div className="country-picker" aria-label="Choose a country">{countryCatalog.map(item => <button key={item.id} className={item.id === country.id ? 'active' : ''} onClick={() => switchCountry(item.id)}><CountryFlag country={item}/>{item.shortName}</button>)}</div></section>
     <section className={`country-explorer country-explorer-3d ${city ? 'city-open' : ''}`}>
       <div className="country-stage country-stage-3d"><CountryMap3D country={country} city={city} onSelectCity={setCity}/>
-        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-sky"><span className="building b1"/><span className="building b2"/><span className="building b3"/><span className="building dome"/></div><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university, index) => { const saved = Boolean(savedItem(university)); const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved ? 'is-saved' : ''}`} whileHover={{ y: -4 }}><span className="uni-pin">{index + 1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.match} · English programmes</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length ? `${people.slice(0,2).map(friend => friend.name).join(' & ')}${people.length > 2 ? ` +${people.length - 2}` : ''} chose this university` : saved ? 'Saved to your shortlist' : 'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{ scale: .78, rotate: -15 }} className={`favorite-star ${saved ? 'saved' : ''}`} onClick={() => toggleUniversity(university)} aria-label={saved ? `Remove ${university.name} from saved` : `Save ${university.name}`}>{saved ? '★' : '☆'}</motion.button></motion.article> })}</div></motion.div>}</AnimatePresence>
+        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type:'spring',stiffness:170,damping:22 }}><CityBackdrop city={city.name}/><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university,index)=>{const saved=Boolean(savedItem(university));const people=friends.filter(friend=>friend.university===university.name);return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved?'is-saved':''}`} whileHover={{y:-4}}><span className="uni-pin">{index+1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.match} · English programmes</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend=><i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length?`${people.slice(0,2).map(friend=>friend.name).join(' & ')}${people.length>2?` +${people.length-2}`:''} chose this university`:saved?'Saved to your shortlist':'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{scale:.78,rotate:-15}} className={`favorite-star ${saved?'saved':''}`} onClick={()=>toggleUniversity(university)} aria-label={saved?`Remove ${university.name} from saved`:`Save ${university.name}`}>{saved?'★':'☆'}</motion.button></motion.article>})}</div></motion.div>}</AnimatePresence>
       </div>
       <aside className="country-sidebar"><span className="country-badge"><CountryFlag country={country}/>DESTINATION MAP</span><h2>{city?.name || country.name}</h2><p>{city ? `Compare universities in ${city.name} and save the ones you want to revisit.` : 'Pick a glowing city point, or drag the country contour to see it from another angle.'}</p><div className="country-facts">{city ? <><div><b>{city.universities.length}</b><small>universities shown</small></div><div><b>{countryFavorites.length}</b><small>saved here</small></div></> : <><div><b>{country.cities.length}</b><small>cities mapped</small></div><div><b>{totalUniversities}</b><small>universities to explore</small></div></>}</div>{!city && <div className="map-legend"><span><i className="legend-pulse"/>Tap a glowing point</span><small>Every outline uses its national flag colours and can rotate in 3D.</small></div>}<button className="button primary" onClick={() => setCity(city || country.cities[0])}>{city ? 'Review city shortlist' : `Explore ${country.cities[0].name}`} <span>{icons.arrow}</span></button></aside>
     </section>

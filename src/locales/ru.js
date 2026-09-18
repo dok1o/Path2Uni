@@ -463,4 +463,19 @@ export const RU = {
   'Exam results recorded': 'Результаты экзаменов внесены',
   'You have at least one completed exam on file.': 'Внесён минимум один сданный экзамен.',
   'Nothing recorded yet, so nothing can be matched against requirements.': 'Пока ничего не внесено, поэтому сопоставлять с требованиями нечего.',
+
+  // --- essay
+  'Motivation letter': 'Мотивационное письмо',
+  'Plan it yourself, with Leo asking the questions': 'Спланируйте сами — вопросы задаст Лео',
+  'Your draft': 'Ваш черновик',
+  'Plan it with Leo': 'Спланировать с Лео',
+  '{count} words drafted': 'в черновике слов: {count}',
+  '{count} words in your draft': 'В черновике слов: {count}',
+  'saved in this browser only': 'сохраняется только в этом браузере',
+  'Leo does not write your letter': 'Лео не пишет письмо за вас',
+  'It is your letter, and a generated paragraph is a statement about you that you did not make. Leo gives the shape and asks the questions only you can answer.': 'Это ваше письмо, а сгенерированный абзац — утверждение о вас, которого вы не делали. Лео даёт структуру и задаёт вопросы, ответить на которые можете только вы.',
+  'Working out the shape of your letter…': 'Продумываем структуру вашего письма…',
+  'Turning what you did into evidence': 'Как превратить сделанное в доказательство',
+  'Read what I wrote under Your strengths and comment on it': 'Прочитать написанное в «Сильных сторонах» и прокомментировать',
+  'That sends only those three boxes to the model, once, to comment on. Your draft is never sent and never leaves this browser.': 'Это один раз отправит модели только те три поля — для комментария. Черновик не отправляется и не покидает браузер.',
 }

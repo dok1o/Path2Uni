@@ -363,10 +363,58 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
 // shortlist, so "Your goals" reopens the real onboarding editor rather than a second form.
 // The rest has no column yet and stays in localStorage until one exists — and nothing here
 // is prefilled with an invented person, because a name you did not type is not your profile.
-const profileDefaults = { firstName:'',lastName:'',birthDate:'',citizenship:'',city:'',education:'',school:'',graduationYear:'',language:'',budget:'',activities:'',awards:'',skills:'',portfolio:'' }
+const profileDefaults = { firstName:'',lastName:'',birthDate:'',citizenship:'',city:'',education:'',school:'',graduationYear:'',language:'',budget:'',activities:'',awards:'',skills:'',portfolio:'',essay:'' }
 const profileEditorFields = {
   about:{title:'About you',subtitle:'Personal details, education and language',fields:[['firstName','First name','text'],['lastName','Last name','text'],['birthDate','Date of birth','date'],['citizenship','Citizenship','text'],['city','Current city','text'],['education','Education level','text'],['school','School or university','text'],['graduationYear','Graduation year','number'],['language','Other languages','text']]},
   strengths:{title:'Your strengths',subtitle:'Activities, awards and portfolio',fields:[['activities','Activities','textarea'],['awards','Awards and achievements','textarea'],['skills','Skills','textarea'],['portfolio','Portfolio link','url'],['budget','Annual budget (EUR)','number']]},
+  essay:{title:'Motivation letter',subtitle:'Plan it yourself, with Leo asking the questions',fields:[['essay','Your draft','textarea']]},
+}
+
+function EssayWorkshop({ details }) {
+  const { t, lang } = useT()
+  const [state, setState] = useState({ loading: true })
+  const [shared, setShared] = useState(false)
+  const activities = [details.activities, details.awards, details.skills].filter(Boolean).join('\n').trim()
+
+  const ask = (withActivities) => {
+    setState({ loading: true })
+    setShared(withActivities)
+    fetch('/api/me/essay', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang, activities: withActivities ? activities : '' }),
+    })
+      .then(response => (response.ok ? response.json() : Promise.reject()))
+      .then(payload => setState({ loading: false, ...payload }))
+      .catch(() => setState({ loading: false, sections: [] }))
+  }
+  useEffect(() => { ask(false) }, [lang])
+
+  const words = String(details.essay || '').trim().split(/\s+/).filter(Boolean).length
+
+  return <div className="essay-workshop">
+    <div className="hint-panel">
+      <div className="hint-head"><img src={mascot} alt=""/><div><b>{t('Leo does not write your letter')}</b><small>{t('It is your letter, and a generated paragraph is a statement about you that you did not make. Leo gives the shape and asks the questions only you can answer.')}</small></div></div>
+      {state.loading ? <div className="hint-panel loading"><span className="map-spinner"/>{t('Working out the shape of your letter…')}</div> : <>
+        <div className="essay-sections">{(state.sections ?? []).map((section, index) => <article key={section.title}>
+          <span className="essay-step">0{index + 1}</span>
+          <div><h4>{section.title}</h4><p>{section.purpose}</p>
+            <ul>{section.questions.map(question => <li key={question}>{question}</li>)}</ul></div>
+        </article>)}</div>
+        {state.weakest && <p className="essay-warn"><i>!</i>{state.weakest}</p>}
+        {state.evidence?.length ? <div className="essay-evidence">
+          <h4>{t('Turning what you did into evidence')}</h4>
+          {state.evidence.map(item => <article key={item.activity}>
+            <b>{item.activity}</b><p>{item.shows}</p><p className="essay-sharpen">{item.sharpen}</p>
+          </article>)}
+        </div> : null}
+        {!shared && activities && <button type="button" className="button soft essay-share" onClick={() => ask(true)}>
+          {t('Read what I wrote under Your strengths and comment on it')}
+        </button>}
+        {!shared && activities && <small className="essay-consent">{t('That sends only those three boxes to the model, once, to comment on. Your draft is never sent and never leaves this browser.')}</small>}
+      </>}
+    </div>
+    <p className="essay-count">{t('{count} words in your draft', { count: words })} · {t('saved in this browser only')}</p>
+  </div>
 }
 
 const KIND_ICON = { competition: '♜', project: '✦', volunteering: '♧', research: '◎', course: '▤', community: '☕' }
@@ -398,7 +446,7 @@ function ProfileEditor({ section, values, onSave, onClose }) {
   const { t } = useT()
   const config=profileEditorFields[section]
   const [draft,setDraft]=useState(values)
-  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">{t('PROFILE DETAILS')}</span><h2>{t(config.title)}</h2><p>{t(config.subtitle)}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>{section === 'strengths' && <OpportunityHints/>}<div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{t(label)}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={t('Add {field}', { field: t(label).toLowerCase() })}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>{t('Cancel')}</button><button className="button primary" type="submit">{t('Save changes')} <span>✓</span></button></footer></motion.form></div>
+  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">{t('PROFILE DETAILS')}</span><h2>{t(config.title)}</h2><p>{t(config.subtitle)}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>{section === 'strengths' && <OpportunityHints/>}{section === 'essay' && <EssayWorkshop details={draft}/>}<div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{t(label)}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={t('Add {field}', { field: t(label).toLowerCase() })}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>{t('Cancel')}</button><button className="button primary" type="submit">{t('Save changes')} <span>✓</span></button></footer></motion.form></div>
 }
 
 function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {
@@ -409,7 +457,7 @@ function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, us
   const [details,setDetails]=useState(()=>{try{return {...profileDefaults,...JSON.parse(localStorage.getItem('path2uni:profileDetails'))}}catch{return profileDefaults}})
   const saveDetails=next=>{setDetails(next);localStorage.setItem('path2uni:profileDetails',JSON.stringify(next));setEditor(null)}
   const testSummary = applicantProfile.tests?.length ? t('{count} exams added', { count: applicantProfile.tests.length }) : t('Add completed and planned exams')
-  const sections=[{title:'About you',description:t('Personal details, education and language'),action:'about'},{title:'Your goals',description:`${destinationLabels(profile, t).join(', ')} · ${t(profile.field)} · ${profile.intake}`,action:'goals'},{title:'Test results',description:testSummary,action:'tests'},{title:'Your strengths',description:t('Activities, awards and portfolio'),action:'strengths'}]
+  const sections=[{title:'About you',description:t('Personal details, education and language'),action:'about'},{title:'Your goals',description:`${destinationLabels(profile, t).join(', ')} · ${t(profile.field)} · ${profile.intake}`,action:'goals'},{title:'Test results',description:testSummary,action:'tests'},{title:'Your strengths',description:t('Activities, awards and portfolio'),action:'strengths'},{title:'Motivation letter',description:details.essay ? t('{count} words drafted', { count: String(details.essay).trim().split(/\s+/).filter(Boolean).length }) : t('Plan it with Leo'),action:'essay'}]
   const tabs = [{id:'overview',label:'Overview'}, {id:'saved',label:'Saved',count:favorites.length}, {id:'friends',label:'Friends',count:friends.length}]
   const tracked=['firstName','lastName','birthDate','citizenship','city','education','school','graduationYear','language','budget','activities','awards','skills','portfolio']
   // Goals and the account name are already on file — onboarding required them — so they count

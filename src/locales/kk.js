@@ -463,4 +463,19 @@ export const KK = {
   'Exam results recorded': 'Емтихан нәтижелері енгізілген',
   'You have at least one completed exam on file.': 'Кемінде бір тапсырылған емтихан енгізілген.',
   'Nothing recorded yet, so nothing can be matched against requirements.': 'Әзірге ештеңе енгізілмеген, сондықтан талаптармен салыстыратын ешнәрсе жоқ.',
+
+  // --- essay
+  'Motivation letter': 'Мотивациялық хат',
+  'Plan it yourself, with Leo asking the questions': 'Өзіңіз жоспарлаңыз — сұрақтарды Лео қояды',
+  'Your draft': 'Сіздің нобайыңыз',
+  'Plan it with Leo': 'Леомен жоспарлау',
+  '{count} words drafted': 'нобайдағы сөз саны: {count}',
+  '{count} words in your draft': 'Нобайдағы сөз саны: {count}',
+  'saved in this browser only': 'тек осы браузерде сақталады',
+  'Leo does not write your letter': 'Лео хатты сіздің орныңызға жазбайды',
+  'It is your letter, and a generated paragraph is a statement about you that you did not make. Leo gives the shape and asks the questions only you can answer.': 'Бұл — сіздің хатыңыз, ал жасалған абзац — сіз айтпаған, сіз туралы тұжырым. Лео құрылым береді және тек сіз жауап бере алатын сұрақтар қояды.',
+  'Working out the shape of your letter…': 'Хатыңыздың құрылымы ойластырылуда…',
+  'Turning what you did into evidence': 'Істегеніңізді дәлелге қалай айналдыру керек',
+  'Read what I wrote under Your strengths and comment on it': '«Күшті жақтарымда» жазғанымды оқып, пікір айт',
+  'That sends only those three boxes to the model, once, to comment on. Your draft is never sent and never leaves this browser.': 'Бұл модельге тек сол үш өрісті бір рет — пікір алу үшін — жібереді. Нобай жіберілмейді және браузерден шықпайды.',
 }

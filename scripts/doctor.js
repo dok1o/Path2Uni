@@ -79,12 +79,16 @@ if (dockerUp) {
       `select count(*) filter (where table_name = 'profile_tests') as m006,
               count(*) filter (where table_name = 'profile_advice') as m007,
               count(*) filter (where table_name = 'applicant_profiles'
-                                and column_name = 'target_countries') as m008
+                                and column_name = 'target_countries') as m008,
+              count(*) filter (where table_name = 'user_activity_days') as m012,
+              count(*) filter (where table_name = 'user_xp_events') as m013
          from information_schema.columns where table_schema = 'public'`)
     const missing = [
       Number(rows[0].m006) ? null : '006_profile_tests.sql',
       Number(rows[0].m007) ? null : '007_diagnosis_and_progress.sql',
       Number(rows[0].m008) ? null : '008_multi_destination.sql',
+      Number(rows[0].m012) ? null : '012_streaks_and_task_progress.sql',
+      Number(rows[0].m013) ? null : '013_persistent_account_xp.sql',
     ].filter(Boolean)
     if (!missing.length) console.log(ok('Migrations applied'))
     else fail(`The database is missing ${missing.length} migration${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}`,

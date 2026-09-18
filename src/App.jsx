@@ -9,6 +9,7 @@ import Onboarding from './Onboarding.jsx'
 import Advisor, { Comparison } from './Advisor.jsx'
 import StreakWidget, { StreakCelebration } from './StreakWidget.jsx'
 import SiteFooter from './SiteFooter.jsx'
+import NotFound from './NotFound.jsx'
 import { useT, LanguageSwitch } from './i18n.jsx'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
 import { cityLife, loadCityLife } from './data/cityLife.js'
@@ -231,13 +232,12 @@ function HomeQuestPath({ setPage, plan, profile }) {
   return <article className="home-game-card"><div className="home-game-head"><div><span className="eyebrow purple">{t('TODAY ON YOUR PATH')}</span><h2>{open.length ? t('{count} steps left to level up', { count: open.length }) : t('Every step is done')}</h2></div><div className="reward-chip">◆ {left ? t('+{xp} XP left', { xp: n(left) }) : t('All XP earned')}</div></div><div className="home-quest-track" style={{gridTemplateColumns:`repeat(${steps.length},1fr)`}}>{steps.map((step,index) => <div className={`home-quest ${step.state}`} key={step.id}>{index < steps.length - 1 && <i className="quest-rail"/>}<button onClick={() => setPage('roadmap')}><span>{step.state === 'locked' ? '⌑' : step.icon}</span><b>{step.id}</b></button><small>{step.label}</small></div>)}</div>{current && <div className="home-active-quest"><span className="mini-gem">✦</span><div><small>{t('ACTIVE QUEST')} · {t(current.due)}</small><strong>{current.shortTitle}</strong><p>{current.subtasks[0] ?? current.description}</p></div><button className="button primary" onClick={() => setPage('roadmap')}>{t('Play')} <span>{icons.arrow}</span></button></div>}</article>
 }
 
-function Dashboard({ setChatOpen, setPage, name, plan, profile, tests, friends }) {
+function Dashboard({ setChatOpen, setPage, name, plan, profile, tests, friends, activity }) {
   const { t, n } = useT()
   const list = plan?.tasks ?? []
   const done = list.filter(task => task.state === 'done').length
   const total = list.length
-  const earned = list.filter(task => task.state === 'done').reduce((sum, task) => sum + (task.xp ?? 0), 0)
-  const possible = list.reduce((sum, task) => sum + (task.xp ?? 0), 0)
+  const earned = activity?.xp?.earned ?? 0
   const exams = tests?.length ?? 0
   const crew = friends ?? []
   // A real deadline needs a real date. The only one this app holds is an exam the person
@@ -253,7 +253,7 @@ function Dashboard({ setChatOpen, setPage, name, plan, profile, tests, friends }
     : current
       ? { kicker: t('YOUR CURRENT STEP'), title: current.shortTitle, lead: current.description, when: t(current.due), go: () => setPage('roadmap') }
       : { kicker: t('NOTHING PENDING'), title: t('Your plan is complete'), lead: t('Add a planned exam date and it will count down here.'), when: t('All done'), go: () => setPage('profile') }
-  return <main className="page dashboard-page"><Greeting setChatOpen={setChatOpen} setPage={setPage} name={name} plan={plan} profile={profile} tests={tests}/><section className="stats-row"><Stat icon="⚡" value={`${done} / ${total}`} label="Tasks completed" note={total ? t('{percent}% of your plan', { percent: Math.round(done / total * 100) }) : 'Generate your plan first'} className="orange"/><Stat icon="✦" value={n(earned)} label="XP earned" note={t('of {total} in this plan', { total: n(possible) })} className="violet"/><Stat icon="◒" value={String(exams)} label={exams === 1 ? 'Exam recorded' : 'Exams recorded'} note={exams ? 'Used in your matches' : 'Add them in your profile'} className="blue"/></section><section className="dash-grid"><HomeQuestPath setPage={setPage} plan={plan} profile={profile}/><aside className="side-stack"><article className="deadline-card"><div className="card-top"><span className="warning-dot">!</span><span>{next.kicker}</span><button aria-label={t('More')}>•••</button></div><h3>{next.title}</h3><p>{next.lead}</p><div className="deadline-bottom"><strong>{next.when}</strong><button className="round-arrow" onClick={next.go}>{icons.arrow}</button></div></article><article className="friend-card"><div className="card-top"><span>{t('YOUR CREW')}</span><button className="text-button" onClick={() => setPage('friends')}>{t('See all')}</button></div><div className="avatars">{crew.slice(0,3).map(friend => <span key={friend.id} className={`avatar ${friend.className}`}>{friend.initials}</span>)}{crew.length > 3 && <span className="avatar a4">+{crew.length - 3}</span>}</div><p>{crew.length ? <>{t('{done} of {total} have chosen a university.', { done: crew.filter(friend => friend.university !== 'Not selected yet').length, total: crew.length })} <span className="demo-badge compact"><i>!</i>{t('demo crew')}</span></> : t('Nobody in your crew yet — add a friend by nickname.')}</p><button className="high-five" onClick={() => setPage('friends')}>{t(crew.length ? 'Open your crew' : 'Add a friend')}</button></article></aside></section></main>
+  return <main className="page dashboard-page"><Greeting setChatOpen={setChatOpen} setPage={setPage} name={name} plan={plan} profile={profile} tests={tests}/><section className="stats-row"><Stat icon="⚡" value={`${done} / ${total}`} label="Tasks completed" note={total ? t('{percent}% of your plan', { percent: Math.round(done / total * 100) }) : 'Generate your plan first'} className="orange"/><Stat icon="✦" value={n(earned)} label="XP earned" note={t('Total account XP')} className="violet"/><Stat icon="◒" value={String(exams)} label={exams === 1 ? 'Exam recorded' : 'Exams recorded'} note={exams ? 'Used in your matches' : 'Add them in your profile'} className="blue"/></section><section className="dash-grid"><HomeQuestPath setPage={setPage} plan={plan} profile={profile}/><aside className="side-stack"><article className="deadline-card"><div className="card-top"><span className="warning-dot">!</span><span>{next.kicker}</span><button aria-label={t('More')}>•••</button></div><h3>{next.title}</h3><p>{next.lead}</p><div className="deadline-bottom"><strong>{next.when}</strong><button className="round-arrow" onClick={next.go}>{icons.arrow}</button></div></article><article className="friend-card"><div className="card-top"><span>{t('YOUR CREW')}</span><button className="text-button" onClick={() => setPage('friends')}>{t('See all')}</button></div><div className="avatars">{crew.slice(0,3).map(friend => <span key={friend.id} className={`avatar ${friend.className}`}>{friend.initials}</span>)}{crew.length > 3 && <span className="avatar a4">+{crew.length - 3}</span>}</div><p>{crew.length ? <>{t('{done} of {total} have chosen a university.', { done: crew.filter(friend => friend.university !== 'Not selected yet').length, total: crew.length })} <span className="demo-badge compact"><i>!</i>{t('demo crew')}</span></> : t('Nobody in your crew yet — add a friend by nickname.')}</p><button className="high-five" onClick={() => setPage('friends')}>{t(crew.length ? 'Open your crew' : 'Add a friend')}</button></article></aside></section></main>
 }
 
 function OSINTFlow({ setPage, plan, onGenerate, focusedNodeId, profile }) {
@@ -332,47 +332,191 @@ function CountryFlagPattern({ country }) {
   return <pattern {...patternProps}>{stripes(['#111','#dd0000','#ffce00'])}</pattern>
 }
 
-function CountryMap3D({ country, city, onSelectCity }) {
-  const map = useMemo(() => getCountryMap(country), [country])
-  const [rotation, setRotation] = useState({ x: -9, y: -12 })
-  const [drag, setDrag] = useState(null)
+function spreadCloseMarkers(cities, map, zoom, frame) {
+  const width = Math.max(1, frame.width)
+  const height = Math.max(1, frame.height)
+  const points = cities.map(place => {
+    const [mapX, mapY] = map.project(place.coordinates)
+    return { place, mapX, mapY, x:mapX / 720 * width, y:mapY / 540 * height }
+  })
+  if (zoom <= 1) return points.map(point => ({ ...point, displayX:point.mapX, displayY:point.mapY, displaced:false }))
 
-  useEffect(() => { setRotation({ x: -9, y: -12 }); setDrag(null) }, [country.id])
+  const parent = points.map((_, index) => index)
+  const root = index => parent[index] === index ? index : (parent[index] = root(parent[index]))
+  const join = (a, b) => { const left = root(a); const right = root(b); if (left !== right) parent[right] = left }
+  for (let left = 0; left < points.length; left += 1) {
+    for (let right = left + 1; right < points.length; right += 1) {
+      if (Math.hypot(points[left].x - points[right].x, points[left].y - points[right].y) < 40) join(left, right)
+    }
+  }
+  const groups = new Map()
+  points.forEach((_, index) => {
+    const key = root(index)
+    groups.set(key, [...(groups.get(key) ?? []), index])
+  })
+
+  const screenPoints = points.map(point => ({ x:point.x * zoom, y:point.y * zoom }))
+  const separation = (zoom - 1) * 14
+  const minimumDistance = 40 * Math.min(1, (zoom - 1) / .55)
+  for (const indexes of groups.values()) {
+    if (indexes.length < 2) continue
+    const center = indexes.reduce((sum, index) => ({ x:sum.x + screenPoints[index].x / indexes.length, y:sum.y + screenPoints[index].y / indexes.length }), { x:0, y:0 })
+    indexes.forEach((index, order) => {
+      let dx = screenPoints[index].x - center.x
+      let dy = screenPoints[index].y - center.y
+      let distance = Math.hypot(dx, dy)
+      if (distance < .5) {
+        const angle = order / indexes.length * Math.PI * 2
+        dx = Math.cos(angle); dy = Math.sin(angle); distance = 1
+      }
+      screenPoints[index].x += dx / distance * separation
+      screenPoints[index].y += dy / distance * separation
+    })
+    for (let pass = 0; pass < 5; pass += 1) {
+      for (let left = 0; left < indexes.length; left += 1) {
+        for (let right = left + 1; right < indexes.length; right += 1) {
+          const a = screenPoints[indexes[left]]
+          const b = screenPoints[indexes[right]]
+          let dx = b.x - a.x
+          let dy = b.y - a.y
+          let distance = Math.hypot(dx, dy)
+          if (distance >= minimumDistance) continue
+          if (distance < .5) { dx = 1; dy = 0; distance = 1 }
+          const shift = (minimumDistance - distance) / 2
+          a.x -= dx / distance * shift; a.y -= dy / distance * shift
+          b.x += dx / distance * shift; b.y += dy / distance * shift
+        }
+      }
+    }
+  }
+
+  return points.map((point, index) => {
+    const displayX = screenPoints[index].x / zoom / width * 720
+    const displayY = screenPoints[index].y / zoom / height * 540
+    return { ...point, displayX, displayY, displaced:Math.hypot(displayX - point.mapX, displayY - point.mapY) > 1 }
+  })
+}
+
+function CountryMap3D({ country, city, onSelectCity }) {
+  const { t } = useT()
+  const map = useMemo(() => getCountryMap(country), [country])
+  const [rotation, setRotation] = useState({ x:-9, y:-12 })
+  const [view, setView] = useState({ zoom:1, x:0, y:0 })
+  const [drag, setDrag] = useState(null)
+  const surfaceRef = useRef(null)
+  const frameRef = useRef(null)
+  const pointers = useRef(new Map())
+  const [frameSize, setFrameSize] = useState({ width:720, height:540 })
+  const spreadsCloseMarkers = country.id === 'italy' && view.zoom > 1
+  const markerLayout = useMemo(() => country.id === 'italy'
+    ? spreadCloseMarkers(country.cities, map, view.zoom, frameSize)
+    : country.cities.map(place => {
+      const [mapX, mapY] = map.project(place.coordinates)
+      return { place, mapX, mapY, displayX:mapX, displayY:mapY, displaced:false }
+    }), [country.cities, country.id, frameSize, map, view.zoom])
+
+  useEffect(() => {
+    setRotation({ x:-9, y:-12 }); setView({ zoom:1, x:0, y:0 }); setDrag(null); pointers.current.clear()
+  }, [country.id])
+
+  useEffect(() => {
+    if (country.id !== 'italy') return undefined
+    const frame = frameRef.current
+    if (!frame) return undefined
+    const measure = () => {
+      const bounds = frame.getBoundingClientRect()
+      setFrameSize(current => Math.abs(current.width - bounds.width) < .5 && Math.abs(current.height - bounds.height) < .5
+        ? current : { width:bounds.width, height:bounds.height })
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(frame)
+    return () => observer.disconnect()
+  }, [country.id])
+
+  const clampZoom = value => Math.max(1, Math.min(3.2, value))
+  const clampPan = (value, zoom) => {
+    const limit = Math.max(0, (zoom - 1) * 230)
+    return Math.max(-limit, Math.min(limit, value))
+  }
+  const changeZoom = amount => setView(current => {
+    const zoom = clampZoom(Math.round((current.zoom + amount) * 100) / 100)
+    return zoom === 1 ? { zoom:1, x:0, y:0 } : { zoom, x:clampPan(current.x, zoom), y:clampPan(current.y, zoom) }
+  })
+  useEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) return undefined
+    const zoomWithWheel = event => { event.preventDefault(); changeZoom(event.deltaY < 0 ? .2 : -.2) }
+    surface.addEventListener('wheel', zoomWithWheel, { passive:false })
+    return () => surface.removeEventListener('wheel', zoomWithWheel)
+  }, [country.id])
+  const resetMap = () => {
+    setRotation({ x:-9, y:-12 }); setView({ zoom:1, x:0, y:0 }); setDrag(null); pointers.current.clear()
+  }
 
   const startDrag = event => {
-    if (event.button !== 0) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
     event.currentTarget.setPointerCapture?.(event.pointerId)
-    setDrag({ pointerId: event.pointerId, x: event.clientX, y: event.clientY, rotation })
+    pointers.current.set(event.pointerId, { x:event.clientX, y:event.clientY })
+    const active = [...pointers.current.values()]
+    if (active.length > 1) {
+      const [first, second] = active
+      setDrag({ mode:'pinch', distance:Math.hypot(second.x - first.x, second.y - first.y) || 1, center:{ x:(first.x + second.x) / 2, y:(first.y + second.y) / 2 }, view })
+      return
+    }
+    setDrag({ mode:view.zoom > 1 ? 'pan' : 'rotate', pointerId:event.pointerId, x:event.clientX, y:event.clientY, rotation, view })
   }
   const moveDrag = event => {
+    if (!pointers.current.has(event.pointerId)) return
+    pointers.current.set(event.pointerId, { x:event.clientX, y:event.clientY })
+    const active = [...pointers.current.values()]
+    if (active.length > 1) {
+      const [first, second] = active
+      const distance = Math.hypot(second.x - first.x, second.y - first.y) || 1
+      const center = { x:(first.x + second.x) / 2, y:(first.y + second.y) / 2 }
+      if (drag?.mode !== 'pinch') { setDrag({ mode:'pinch', distance, center, view }); return }
+      const zoom = clampZoom(drag.view.zoom * distance / drag.distance)
+      setView({ zoom, x:clampPan(drag.view.x + center.x - drag.center.x, zoom), y:clampPan(drag.view.y + center.y - drag.center.y, zoom) })
+      return
+    }
     if (!drag || event.pointerId !== drag.pointerId) return
-    setRotation({
-      x: Math.max(-42, Math.min(31, drag.rotation.x - (event.clientY - drag.y) * .18)),
-      y: Math.max(-48, Math.min(48, drag.rotation.y + (event.clientX - drag.x) * .18)),
-    })
+    if (drag.mode === 'pan') {
+      setView({ zoom:drag.view.zoom, x:clampPan(drag.view.x + event.clientX - drag.x, drag.view.zoom), y:clampPan(drag.view.y + event.clientY - drag.y, drag.view.zoom) })
+    } else if (drag.mode === 'rotate') {
+      setRotation({
+        x:Math.max(-42, Math.min(31, drag.rotation.x - (event.clientY - drag.y) * .18)),
+        y:Math.max(-48, Math.min(48, drag.rotation.y + (event.clientX - drag.x) * .18)),
+      })
+    }
   }
   const stopDrag = event => {
-    if (drag && event.pointerId === drag.pointerId) setDrag(null)
+    pointers.current.delete(event.pointerId)
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    setDrag(null)
   }
 
   return <div className="country-map-3d-shell">
-    <div className={`country-map-3d ${drag ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag}>
-      <div className="country-map-frame">
-        <div className="country-map-rotation" style={{ transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
-          <svg className="country-contour-map" viewBox={MAP_VIEWBOX} role="img" aria-label={`${country.name} contour map in its flag colours`}>
-            <defs><CountryFlagPattern country={country}/><filter id={`country-shadow-${country.id}`} x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="14" floodColor="#2b3158" floodOpacity=".28"/></filter></defs>
-            <path d={map.path} fill={`url(#country-flag-${country.id})`} fillRule="evenodd" filter={`url(#country-shadow-${country.id})`}/>
-            <path d={map.path} fill="none" stroke="rgba(255,255,255,.94)" strokeWidth="3" strokeLinejoin="round" fillRule="evenodd"/>
-          </svg>
-          <div className="country-pois">{country.cities.map(place => {
-            const [x, y] = map.project(place.coordinates)
-            return <button key={place.name} style={{ left: `${x / 7.2}%`, top: `${y / 5.4}%` }} className={`map-poi country-map-poi ${city?.name === place.name ? 'active' : ''}`} onPointerDown={event => event.stopPropagation()} onClick={() => onSelectCity(place)} aria-label={`Explore universities in ${place.name}`}><span><i>⌂</i></span><b>{place.name}</b><small>{place.universities.length} universities</small></button>
-          })}</div>
+    <div ref={surfaceRef} className={`country-map-3d ${drag ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onDoubleClick={event => { if (!event.target.closest('button')) changeZoom(view.zoom > 1 ? -view.zoom : 1) }}>
+      <div ref={frameRef} className="country-map-frame">
+        <div className="country-map-zoom" style={{ transform:`translate3d(${view.x}px,${view.y}px,0) scale(${view.zoom})` }}>
+          <div className="country-map-rotation" style={{ transform:`rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
+            <svg className="country-contour-map" viewBox={MAP_VIEWBOX} role="img" aria-label={`${country.name} contour map in its flag colours`}>
+              <defs><CountryFlagPattern country={country}/><filter id={`country-shadow-${country.id}`} x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="14" floodColor="#2b3158" floodOpacity=".28"/></filter></defs>
+              <path d={map.path} fill={`url(#country-flag-${country.id})`} fillRule="evenodd" filter={`url(#country-shadow-${country.id})`}/>
+              <path d={map.path} fill="none" stroke="rgba(255,255,255,.94)" strokeWidth="3" strokeLinejoin="round" fillRule="evenodd"/>
+            </svg>
+            <div className="country-pois">{markerLayout.map(marker => <button key={marker.place.name} style={{ left:`${marker.displayX / 7.2}%`, top:`${marker.displayY / 5.4}%`, ...(spreadsCloseMarkers ? { '--poi-scale':1 / view.zoom } : {}) }} className={`map-poi country-map-poi ${country.id === 'italy' ? 'italy-marker' : ''} ${spreadsCloseMarkers ? 'is-separated' : ''} ${city?.name === marker.place.name ? 'active' : ''}`} onPointerDown={event => event.stopPropagation()} onClick={() => onSelectCity(marker.place)} aria-label={t('Explore universities in {city}', { city:marker.place.name })}><span><i>⌂</i></span><b>{t(marker.place.name)}</b><small>{t('{count} universities', { count:marker.place.universities.length })}</small></button>)}</div>
+          </div>
         </div>
       </div>
     </div>
-    <button className="country-spin-control" onClick={() => setRotation({ x: -9, y: -12 })} aria-label="Reset 3D map orientation"><span>↻</span> Reset 3D view</button>
-    <p className="country-map-gesture">Drag the map to rotate it in 3D</p>
+    <div className="country-zoom-controls" aria-label={t('Map zoom controls')}>
+      <button type="button" onClick={() => changeZoom(-.25)} disabled={view.zoom <= 1} aria-label={t('Zoom out')}>−</button>
+      <output aria-live="polite">{Math.round(view.zoom * 100)}%</output>
+      <button type="button" onClick={() => changeZoom(.25)} disabled={view.zoom >= 3.2} aria-label={t('Zoom in')}>+</button>
+    </div>
+    <button className="country-spin-control" onClick={resetMap} aria-label={t('Reset map view')}><span>↻</span> {t('Reset map')}</button>
+    <p className="country-map-gesture">{t(country.id === 'italy' && view.zoom > 1 ? 'Close cities spread apart · drag to move' : view.zoom > 1 ? 'Drag to move · pinch or scroll to zoom' : 'Drag to rotate · pinch or scroll to zoom')}</p>
   </div>
 }
 
@@ -504,11 +648,10 @@ function ProfileEditor({ section, values, onSave, onClose }) {
   return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">{t('PROFILE DETAILS')}</span><h2>{t(config.title)}</h2><p>{t(config.subtitle)}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>{section === 'strengths' && <OpportunityHints/>}{section === 'essay' && <EssayWorkshop details={draft}/>}<div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{t(label)}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={t('Add {field}', { field: t(label).toLowerCase() })}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>{t('Cancel')}</button><button className="button primary" type="submit">{t('Save changes')} <span>✓</span></button></footer></motion.form></div>
 }
 
-function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {
+function ProfileV2({ favorites, setPage, onToggleFavorite, friends, highFives, onToggleHighFive, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {
   const { t } = useT()
   const [tab, setTab] = useState('overview')
   const [editor,setEditor]=useState(null)
-  const [highFives,setHighFives]=useState(()=>new Set())
   const [details,setDetails]=useState(()=>{try{return {...profileDefaults,...JSON.parse(localStorage.getItem('path2uni:profileDetails'))}}catch{return profileDefaults}})
   const saveDetails=next=>{setDetails(next);localStorage.setItem('path2uni:profileDetails',JSON.stringify(next));setEditor(null)}
   const testSummary = applicantProfile.tests?.length ? t('{count} exams added', { count: applicantProfile.tests.length }) : t('Add completed and planned exams')
@@ -519,26 +662,63 @@ function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, us
   // as done rather than sitting forever as two missing items nobody can fill in from here.
   const completion=Math.round((tracked.filter(key=>String(details[key]||'').trim()).length+2+(applicantProfile.tests?.length?1:0))/(tracked.length+3)*100)
   const initials=(user.displayName||user.username).trim().charAt(0).toUpperCase()
-  const toggleHighFive=id=>setHighFives(current=>{const next=new Set(current);next.has(id)?next.delete(id):next.add(id);return next})
 
   return <main className="page profile-page profile-v2"><section className="profile-hero"><div className="profile-avatar">{initials}</div><div><span className="eyebrow purple">{t('MY PROFILE')}</span><h1>{user.displayName || user.username}</h1><p>{destinationLabels(profile, t).join(' · ')} · {t(profile.degree)} · {t('{year} intake', { year: profile.intake })}</p></div><div className="profile-actions"><LanguageSwitch compact/><button className="button soft" onClick={onEditProfile}>{t('Edit profile')} <span>✎</span></button><button className="logout-button" onClick={onLogout}>{t('Log out')} ↗</button></div></section><nav className="profile-tabs" aria-label="Profile sections">{tabs.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)}>{t(item.label)}{item.count != null && <span>{item.count}</span>}</button>)}</nav>
     <AnimatePresence mode="wait"><motion.section key={tab} className="profile-tab-panel" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.2}}>{tab === 'overview' && <><section className="profile-progress"><div><span className="eyebrow">{t('PROFILE COMPLETION')}</span><h2>{t('{percent}% complete', { percent: completion })}</h2><p>{t(completion===100?'Your profile is complete and ready for personalised recommendations.':'Complete the remaining details so Leo can tailor every recommendation.')}</p></div><div className="progress-circle" style={{background:`conic-gradient(#6653d8 0 ${completion}%,#ebeafd ${completion}%)`}}><b>{completion}%</b></div></section><section className="profile-grid"><div className="profile-sections">{sections.map((section,index) => <button className="profile-section" key={section.title} onClick={()=>section.action==='tests'?onOpenExamStep():section.action==='goals'?onEditProfile():setEditor(section.action)}><span className="profile-number">0{index + 1}</span><span><h3>{t(section.title)}</h3><p>{section.description}</p></span><i>{icons.chevron}</i></button>)}</div><aside className="profile-next"><img src={mascot} alt="Leo mascot"/><span className="eyebrow purple">{t('NEXT BEST STEP')}</span><h3>{t('Tell us about your test results')}</h3><p>{t('It takes about 3 minutes and improves your university matches.')}</p><button className="button dark" onClick={onOpenExamStep}>{t('Complete now')} <span>{icons.arrow}</span></button></aside></section></>}
       {tab === 'saved' && <section className="saved-panel"><div className="tab-intro"><span className="eyebrow purple">{t('YOUR SHORTLIST')}</span><h2>{t('Universities worth coming back to.')}</h2><p>{t('Every gold star from the country map is collected here.')}</p></div>{favorites.length ? <div className="saved-grid">{favorites.map((university,index) => { const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className="saved-university" initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{delay:index*.05}}><button className="favorite-star saved" onClick={() => onToggleFavorite(university)} aria-label={`Remove ${university.name} from saved`}>★</button><span className="saved-rank">0{index+1}</span><small>{t(university.city)}, {t(university.country)}</small><h3>{university.name}</h3><p>{t(university.focus)}</p><div className="saved-card-bottom"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><button onClick={() => setPage('universities')}>{t('View on map')} {icons.arrow}</button></div></motion.article> })}</div> : <div className="profile-empty"><span>☆</span><h3>{t('No saved universities yet')}</h3><p>{t('Explore a country and tap a star on any university you want to compare later.')}</p><button className="button primary" onClick={() => setPage('universities')}>{t('Explore universities')} <span>{icons.arrow}</span></button></div>}</section>}
-      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">{t('YOUR ADMISSION CREW')}</span><h2>{t('See where your friends are heading.')}</h2><p>{t('Their university choices also appear directly on the city cards.')}</p></div><button className="button soft" onClick={() => setPage('friends')}>+ {t('Add by nickname')}</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? t('Choosing a destination') : <>{t('Chose')} <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className={`high-five ${highFives.has(friend.id)?'sent':''}`} onClick={()=>toggleHighFive(friend.id)}>{highFives.has(friend.id)?`✓ ${t('Sent')}`:`✋ ${t('High-five')}`}</button></motion.article>)}</div></section>}</motion.section></AnimatePresence>{editor&&<ProfileEditor section={editor} values={details} onSave={saveDetails} onClose={()=>setEditor(null)}/>}
+      {tab === 'friends' && <section className="profile-friends-panel"><div className="tab-intro tab-intro-row"><div><span className="eyebrow purple">{t('YOUR ADMISSION CREW')}</span><h2>{t('See where your friends are heading.')}</h2><p>{t('Their university choices also appear directly on the city cards.')}</p></div><button className="button soft" onClick={() => setPage('friends')}>+ {t('Add by nickname')}</button></div><div className="profile-friend-grid">{friends.map((friend,index) => <motion.article key={friend.id} initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:index*.06}}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? t('Choosing a destination') : <>{t('Chose')} <b>{friend.university}</b></>}</p></div><span className="friend-choice-star">★</span><button className={`high-five ${highFives.has(friend.id)?'sent':''}`} onClick={()=>onToggleHighFive(friend.id)}>{highFives.has(friend.id)?`✓ ${t('Sent')}`:`✋ ${t('High-five')}`}</button></motion.article>)}</div></section>}
+    </motion.section></AnimatePresence>
+    {editor && <ProfileEditor section={editor} values={details} onSave={saveDetails} onClose={() => setEditor(null)}/>}
   </main>
 }
 
-function Friends({ friends, onAddFriend }) {
+function Friends({ friends, highFives, onToggleHighFive, onAddFriend }) {
   const { t } = useT()
   const [nickname, setNickname] = useState('')
   const [notice, setNotice] = useState(null)
+  const [leaderboard, setLeaderboard] = useState({ leaders:[], me:null })
+  const [leaderboardStatus, setLeaderboardStatus] = useState('loading')
+  useEffect(() => {
+    const controller = new AbortController()
+    setLeaderboardStatus('loading')
+    fetch('/api/me/leaderboard', { signal:controller.signal })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload.error || 'Could not load the leaderboard')
+        return payload.leaderboard
+      })
+      .then(result => { setLeaderboard(result); setLeaderboardStatus('ready') })
+      .catch(error => { if (error.name !== 'AbortError') setLeaderboardStatus('error') })
+    return () => controller.abort()
+  }, [])
   const submit = event => {
     event.preventDefault()
     const result = onAddFriend(nickname)
     setNotice(result)
     if (result.ok) setNickname('')
   }
-  return <main className="page friends-page"><section className="friends-hero-grid"><section className="list-hero"><span className="eyebrow purple">{t('YOUR CREW')}</span><h1>{t('Progress is better together.')}</h1><p>{t('Find a Path2Uni student by nickname and add them to your admission crew.')}</p></section><form className="add-friend-card" onSubmit={submit}><span className="add-friend-icon">＋</span><div><span className="eyebrow purple">{t('ADD A FRIEND')}</span><h2>{t('Find by nickname')}</h2></div><label><span>@</span><input value={nickname} onChange={event => { setNickname(event.target.value); setNotice(null) }} placeholder={t('nickname')} aria-label={t('Friend nickname')}/><button type="submit">{t('Add friend')}</button></label>{notice && <p className={notice.ok ? 'success' : 'error'}>{t(notice.message, notice.vars)}</p>}<small>{t('Try a unique nickname, for example')} <b>@alex.abroad</b>.</small></form></section><div className="friend-list">{friends.map(friend => <article key={friend.id}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? 'Choosing a destination' : <><span className="inline-friend-star">★</span> Chose {friend.university}</>} · today</p></div><button className="high-five">✋ High-five</button></article>)}</div></main>
+  const inTop = leaderboard.me && leaderboard.leaders.some(entry => entry.isCurrentUser)
+  const leaderboardRows = leaderboardStatus === 'loading'
+    ? Array.from({ length:3 }, (_, index) => <div className="leaderboard-row skeleton" key={index}><i/><span/><b/></div>)
+    : leaderboard.leaders.map(entry => {
+      const initials = (entry.displayName || entry.username).trim().slice(0, 1).toUpperCase()
+      return <div className={`leaderboard-row ${entry.isCurrentUser ? 'is-me' : ''}`} key={entry.username}>
+        <strong className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank - 1] : entry.rank}</strong>
+        <span className="leaderboard-avatar">{initials}</span>
+        <span className="leaderboard-person"><b>{entry.displayName}</b><small>@{entry.username}{entry.isCurrentUser ? ` · ${t('you')}` : ''}</small></span>
+        <span className="leaderboard-xp"><b>{entry.xp.toLocaleString('en-US')}</b><small>XP</small></span>
+      </div>
+    })
+  return <main className="page friends-page">
+    <section className="friends-hero-grid"><section className="list-hero"><span className="eyebrow purple">{t('YOUR CREW')}</span><h1>{t('Progress is better together.')}</h1><p>{t('Find a Path2Uni student by nickname and add them to your admission crew.')}</p></section><form className="add-friend-card" onSubmit={submit}><span className="add-friend-icon">＋</span><div><span className="eyebrow purple">{t('ADD A FRIEND')}</span><h2>{t('Find by nickname')}</h2></div><label><span>@</span><input value={nickname} onChange={event => { setNickname(event.target.value); setNotice(null) }} placeholder={t('nickname')} aria-label={t('Friend nickname')}/><button type="submit">{t('Add friend')}</button></label>{notice && <p className={notice.ok ? 'success' : 'error'}>{t(notice.message, notice.vars)}</p>}<small>{t('Try a unique nickname, for example')} <b>@alex.abroad</b>.</small></form></section>
+    <section className="xp-leaderboard"><header><div><span className="eyebrow purple">{t('XP LEADERBOARD')}</span><h2>{t('Top Pathfinders')}</h2><p>{t('Live account XP earned from completed Path quests.')}</p></div><span className={`leaderboard-live ${leaderboardStatus}`}><i/>{t(leaderboardStatus === 'ready' ? 'LIVE' : leaderboardStatus === 'error' ? 'OFFLINE' : 'SYNCING')}</span></header>
+      <div className="leaderboard-list">{leaderboardRows}</div>
+      {leaderboardStatus === 'ready' && !leaderboard.leaders.length && <div className="leaderboard-empty">{t('Complete the first quest to start the leaderboard.')}</div>}
+      {leaderboardStatus === 'error' && <div className="leaderboard-empty error">{t('The leaderboard is temporarily unavailable. Your XP is still safe.')}</div>}
+      {leaderboardStatus === 'ready' && leaderboard.me && !inTop && <div className="leaderboard-my-place"><span>{t('Your place')}</span><b>#{leaderboard.me.rank}</b><strong>{leaderboard.me.xp.toLocaleString('en-US')} XP</strong></div>}
+    </section>
+    <div className="friend-list">{friends.map(friend => { const sent=highFives.has(friend.id); return <article key={friend.id}><span className={`avatar ${friend.className}`}>{friend.initials}</span><div><h3>{friend.name} <small>{friend.nickname}</small></h3><p>{friend.university === 'Not selected yet' ? t('Choosing a destination') : <><span className="inline-friend-star">★</span> {t('Chose')} {friend.university}</>} · {t('today')}</p></div><motion.button type="button" whileTap={{scale:.86,rotate:-7}} aria-pressed={sent} className={`high-five ${sent?'sent':''}`} onClick={()=>onToggleHighFive(friend.id)}>{sent?`✓ ${t('Sent')}`:`✋ ${t('High-five')}`}</motion.button></article> })}</div>
+  </main>
 }
 
 const examCatalog = [
@@ -654,7 +834,7 @@ const destinationLabels = (profile, t = value => value) =>
   (profile.destinationLabels?.length ? profile.destinationLabels : [profile.destinationLabel]).filter(Boolean).map(label => t(label))
 const destinationSummary = (profile, t) => { const list = destinationLabels(profile, t); return list.length > 2 ? `${list[0]} +${list.length - 1}` : list.join(' · ') }
 
-export default function App() {
+function Path2UniApp() {
   const { t, n, lang } = useT()
   const [page, setPage] = useState('home'); const [chatOpen, setChatOpen] = useState(false)
   const [focusedNodeId, setFocusedNodeId] = useState(null)
@@ -685,8 +865,24 @@ export default function App() {
       return Array.isArray(saved) ? saved.map(friend => ({ ...friend, nickname:friend.nickname || `@${friend.id}` })) : friendProfiles
     } catch { return friendProfiles }
   })
+  const [highFives, setHighFives] = useState(() => new Set())
   useEffect(() => { localStorage.setItem('path2uni:favorites', JSON.stringify(favorites)) }, [favorites])
   useEffect(() => { localStorage.setItem('path2uni:friends', JSON.stringify(friends)) }, [friends])
+  useEffect(() => {
+    if (!user?.id) { setHighFives(new Set()); return }
+    try {
+      const saved = JSON.parse(localStorage.getItem(`path2uni:highFives:${user.id}`))
+      setHighFives(new Set(Array.isArray(saved) ? saved : []))
+    } catch { setHighFives(new Set()) }
+  }, [user?.id])
+  const toggleHighFive = useCallback(friendId => {
+    setHighFives(current => {
+      const next = new Set(current)
+      next.has(friendId) ? next.delete(friendId) : next.add(friendId)
+      if (user?.id) localStorage.setItem(`path2uni:highFives:${user.id}`, JSON.stringify([...next]))
+      return next
+    })
+  }, [user?.id])
   useEffect(() => {
     if (!user) { setProfile(undefined); return }
     let alive = true
@@ -773,19 +969,19 @@ export default function App() {
     setBuilding(true)
     try {
       const plan = await postPlan(defaultObjective(item))
-      if (stillHere()) { setAdmissionPlan(plan); setFocusedNodeId(plan.tasks[0]?.id ?? null) }
+      if (stillHere()) { setAdmissionPlan(plan); setFocusedNodeId(plan.tasks[0]?.id ?? null); await refreshActivity() }
     } catch { /* the Generate button is still there */ }
     finally { if (stillHere()) setBuilding(false) }
   }
 
   const handleGeneratePlan = async objective => {
     const plan = await postPlan(objective)
-    setAdmissionPlan(plan); setFocusedNodeId(plan.tasks[0]?.id ?? null)
+    setAdmissionPlan(plan); setFocusedNodeId(plan.tasks[0]?.id ?? null); await refreshActivity()
     return plan
   }
   const nav = [{label:'Home',icon:'home',id:'home'}, {label:'My matches',icon:'target',id:'advisor'}, {label:'My path',icon:'path',id:'roadmap'}, {label:'Decision map',icon:'search',id:'intel'}, {label:'Universities',icon:'uni',id:'universities'}, {label:'Friends',icon:'friends',id:'friends'}]
   if (user === undefined) return <div className="auth-booting"><span className="map-spinner"/>{t('Checking your session…')}</div>
-  if (user === null) return <Auth onSignedIn={setUser}/>
+  if (user === null) return <div className="auth-public-shell"><Auth onSignedIn={setUser}/><SiteFooter onNavigate={() => window.location.assign('/')}/></div>
   if (profile === undefined) return <div className="auth-booting"><span className="map-spinner"/>{t('Loading your path…')}</div>
   if (profile === null) return <Onboarding user={user} onDone={async item => { setProfile(item); await buildFirstPlan(item) }}/>
   // Re-answering rebuilds the plan, and the diagnosis cache keys on the answers, so the
@@ -796,5 +992,11 @@ export default function App() {
 
   const firstName = (user.displayName || user.username).trim().split(/\s+/)[0]
   const initial = firstName.charAt(0).toUpperCase()
-  const body = page === 'advisor' ? <Advisor profile={profile} onCompare={setComparing} onOpenPlan={() => setPage('roadmap')}/> : page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName} plan={admissionPlan} profile={profile} tests={applicantProfile.tests} friends={friends}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT} onTaskDone={setTaskDone} onCompleteQuest={completeQuest} activity={activity}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut} user={user} profile={profile} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)} onEditProfile={() => setEditingProfile(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId} profile={profile}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
+  const body = page === 'advisor' ? <Advisor profile={profile} onCompare={setComparing} onOpenPlan={() => setPage('roadmap')}/> : page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName} plan={admissionPlan} profile={profile} tests={applicantProfile.tests} friends={friends} activity={activity}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT} onTaskDone={setTaskDone} onCompleteQuest={completeQuest} activity={activity}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} highFives={highFives} onToggleHighFive={toggleHighFive} onLogout={logOut} user={user} profile={profile} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)} onEditProfile={() => setEditingProfile(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId} profile={profile}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} highFives={highFives} onToggleHighFive={toggleHighFive} onAddFriend={addFriend}/>
   return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{initial}</span><span><b>{user.displayName || user.username}</b><small>{t('My profile')}</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ {n(activity?.xp?.earned ?? 0)} XP</button><StreakWidget streak={activity?.streak} today={activity?.today}/><Notices onGo={setPage}/><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><SiteFooter onNavigate={setPage}/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label={t('Open Leo AI')}><img src={mascot} alt=""/><span>{t('Ask Leo')} <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label={t('Close Leo AI')}/>}{comparing && <Comparison items={comparing} onClose={() => setComparing(null)}/>}<AnimatePresence>{celebration && <StreakCelebration streak={celebration.streak} awardedXp={celebration.awardedXp} onClose={() => setCelebration(null)}/>}</AnimatePresence>{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>}
+
+export default function App() {
+  return window.location.pathname === '/' || window.location.pathname === '/index.html'
+    ? <Path2UniApp/>
+    : <NotFound/>
+}

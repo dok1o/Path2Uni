@@ -20,6 +20,35 @@ export function ensureActivitySchema() {
       )`)
       await query(`create index if not exists idx_user_activity_recent
         on user_activity_days (user_id, activity_date desc)`)
+      await query(`create table if not exists user_xp_events (
+        user_id uuid not null references users(id) on delete cascade,
+        source_task_id uuid not null,
+        subtask_index integer not null check (subtask_index >= 0),
+        xp integer not null check (xp >= 0),
+        earned_at timestamptz not null default now(),
+        primary key (user_id, source_task_id, subtask_index)
+      )`)
+      await query(`create index if not exists idx_user_xp_events_account
+        on user_xp_events (user_id, earned_at desc)`)
+      // Numbered Docker migrations are not replayed for an existing volume. Backfill old
+      // completed quests here too, so deploying this update never resets an account's XP.
+      await query(`insert into user_xp_events (user_id, source_task_id, subtask_index, xp, earned_at)
+        select p.user_id, rt.id, completed.quest_index,
+               greatest(coalesce(rt.xp, 0), 0) / jsonb_array_length(rt.subtasks)
+                 + case when completed.quest_index < mod(greatest(coalesce(rt.xp, 0), 0), jsonb_array_length(rt.subtasks)) then 1 else 0 end,
+               coalesce(rt.completed_at, r.created_at, now())
+          from roadmap_tasks rt
+          join roadmaps r on r.id = rt.roadmap_id
+          join applicant_profiles p on p.id = r.profile_id
+         cross join lateral (
+           select value::integer as quest_index
+             from jsonb_array_elements_text(rt.completed_subtasks)
+         ) completed
+         where jsonb_typeof(rt.subtasks) = 'array'
+           and jsonb_array_length(rt.subtasks) > 0
+           and completed.quest_index >= 0
+           and completed.quest_index < jsonb_array_length(rt.subtasks)
+        on conflict (user_id, source_task_id, subtask_index) do nothing`)
     })().catch(error => { schemaReady = undefined; throw error })
   }
   return schemaReady
@@ -89,27 +118,80 @@ export function calculateEarnedXp(tasks = []) {
   }, { earned:0, completedQuests:0 })
 }
 
+// Changing target universities creates a new roadmap. Public and account XP therefore use
+// the best single roadmap total instead of summing regenerated copies of the same quests.
+export async function getXpLeaderboard(userId, limit = 10) {
+  await ensureActivitySchema()
+  const safeLimit = Math.max(1, Math.min(25, Math.trunc(Number(limit) || 10)))
+  const { rows } = await query(`
+    with plan_totals as (
+      select e.user_id, rt.roadmap_id, sum(e.xp)::integer as xp
+        from user_xp_events e
+        join roadmap_tasks rt on rt.id = e.source_task_id
+       group by e.user_id, rt.roadmap_id
+    ), best_totals as (
+      select user_id, max(xp)::integer as xp from plan_totals group by user_id
+    ), ranked as (
+      select u.id, u.username::text as username,
+             coalesce(nullif(trim(u.display_name), ''), u.username::text) as display_name,
+             coalesce(b.xp, 0)::integer as xp,
+             row_number() over (order by coalesce(b.xp, 0) desc, u.created_at asc, u.username asc) as position
+        from users u
+        left join best_totals b on b.user_id = u.id
+       where u.username is not null
+    )
+    select username, display_name, xp, position, id = $1 as is_current_user
+      from ranked
+     where (xp > 0 and position <= $2) or id = $1
+     order by position`, [userId, safeLimit])
+
+  const present = row => ({
+    rank:Number(row.position), username:row.username, displayName:row.display_name,
+    xp:Number(row.xp), isCurrentUser:Boolean(row.is_current_user),
+  })
+  const entries = rows.map(present)
+  return {
+    leaders:entries.filter(entry => entry.xp > 0 && entry.rank <= safeLimit),
+    me:entries.find(entry => entry.isCurrentUser) ?? null,
+  }
+}
+
 export async function getActivity(userId) {
   await ensureActivitySchema()
-  const [{ rows: userRows }, { rows: dayRows }, { rows: progressRows }, { rows: xpRows }] = await Promise.all([
+  const [{ rows: userRows }, { rows: dayRows }, { rows: taskRows }, { rows: xpRows }] = await Promise.all([
     query(`select (now() at time zone coalesce(timezone, 'Asia/Almaty'))::date::text as today
       from users where id = $1`, [userId]),
     query(`select activity_date::text as activity_date
       from user_activity_days where user_id = $1 order by activity_date`, [userId]),
-    query(`select rt.id::text as task_id, rt.completed_subtasks
+    query(`select rt.id::text as task_id, rt.xp, rt.subtasks, rt.completed_subtasks
       from roadmap_tasks rt
       join roadmaps r on r.id = rt.roadmap_id and r.is_current
       join applicant_profiles p on p.id = r.profile_id
-      where p.user_id = $1`, [userId]),
-    query(`select rt.xp, rt.subtasks, rt.completed_subtasks
-      from roadmap_tasks rt
-      join roadmaps r on r.id = rt.roadmap_id
-      join applicant_profiles p on p.id = r.profile_id
-      where p.user_id = $1`, [userId]),
+      where p.user_id = $1 order by rt.position`, [userId]),
+    query(`select plan_xp::integer as earned, completed_quests::integer
+             from (
+               select sum(e.xp) as plan_xp, count(*) as completed_quests
+                 from user_xp_events e
+                 join roadmap_tasks rt on rt.id = e.source_task_id
+                where e.user_id = $1
+                group by rt.roadmap_id
+             ) totals
+            order by plan_xp desc, completed_quests desc
+            limit 1`, [userId]),
   ])
   const today = userRows[0]?.today ?? new Date().toISOString().slice(0, 10)
-  const progress = Object.fromEntries(progressRows.map(row => [row.task_id, Array.isArray(row.completed_subtasks) ? row.completed_subtasks : []]))
-  return { streak: calculateStreak(dayRows.map(row => row.activity_date), today), xp:calculateEarnedXp(xpRows), progress, today }
+  const progress = Object.fromEntries(taskRows.map(row => [row.task_id, completedIndexes(row.completed_subtasks, row.subtasks?.length ?? 0)]))
+  const current = calculateEarnedXp(taskRows)
+  return {
+    streak:calculateStreak(dayRows.map(row => row.activity_date), today),
+    xp:{
+      earned:Number(xpRows[0]?.earned ?? 0),
+      completedQuests:Number(xpRows[0]?.completed_quests ?? 0),
+      currentEarned:current.earned,
+      currentCompletedQuests:current.completedQuests,
+    },
+    progress, today,
+  }
 }
 
 /**
@@ -141,7 +223,7 @@ export async function setSubtaskProgress(userId, input = {}) {
   try {
     await client.query('begin')
     const { rows } = await client.query(
-      `select rt.id, rt.subtasks, rt.completed_subtasks, rt.xp, u.timezone
+      `select rt.id, rt.roadmap_id, rt.position, rt.subtasks, rt.completed_subtasks, rt.xp, u.timezone
        from roadmap_tasks rt
        join roadmaps r on r.id = rt.roadmap_id and r.is_current
        join applicant_profiles p on p.id = r.profile_id
@@ -155,24 +237,45 @@ export async function setSubtaskProgress(userId, input = {}) {
          )
        for update of rt`, [taskId, userId])
     const task = rows[0]
-    if (!task) { await client.query('rollback'); return { error: 'Task not found', status: 404 } }
+    if (!task) { await client.query('rollback'); return { error: 'Task is locked or does not exist', status: 404 } }
     const count = Array.isArray(task.subtasks) ? task.subtasks.length : 0
-    if (subtaskIndex >= count) { await client.query('rollback'); return { error: 'Subtask not found', status: 404 } }
+    if (subtaskIndex >= count) { await client.query('rollback'); return { error: 'Quest does not exist', status: 404 } }
 
     const indexes = new Set(completedIndexes(task.completed_subtasks, count))
     const wasCompleted = indexes.has(subtaskIndex)
     if (completed) indexes.add(subtaskIndex)
     else indexes.delete(subtaskIndex)
     const next = [...indexes].sort((a, b) => a - b)
-    const status = next.length === count ? 'done' : next.length ? 'in_progress' : 'todo'
+    const status = next.length === count ? 'done' : 'in_progress'
     await client.query(
       `update roadmap_tasks set completed_subtasks = $1::jsonb, status = $2::task_status,
          completed_at = case when $2 = 'done' then coalesce(completed_at, now()) else null end
-       where id = $3`, [JSON.stringify(next), status, taskId])
+       where id = $3`, [JSON.stringify(next), status, task.id])
+
+    await client.query(
+      `update roadmap_tasks set status = 'todo'
+       where roadmap_id = $1 and position > $2 and status = 'in_progress'`,
+      [task.roadmap_id, task.position])
+    if (status === 'done') {
+      await client.query(
+        `update roadmap_tasks set status = 'in_progress'
+         where id = (
+           select id from roadmap_tasks
+           where roadmap_id = $1 and position > $2 and status = 'todo'
+           order by position limit 1
+         )`, [task.roadmap_id, task.position])
+    }
 
     let streakExtended = false
-    const awardedXp = completed && !wasCompleted ? xpForSubtask(task.xp, count, subtaskIndex) : 0
+    let awardedXp = 0
     if (completed && !wasCompleted) {
+      const reward = xpForSubtask(task.xp, count, subtaskIndex)
+      const award = await client.query(
+        `insert into user_xp_events (user_id, source_task_id, subtask_index, xp)
+         values ($1, $2, $3, $4)
+         on conflict (user_id, source_task_id, subtask_index) do nothing
+         returning xp`, [userId, task.id, subtaskIndex, reward])
+      awardedXp = Number(award.rows[0]?.xp ?? 0)
       const inserted = await client.query(
         `insert into user_activity_days (user_id, activity_date)
          values ($1, (now() at time zone coalesce($2, 'Asia/Almaty'))::date)

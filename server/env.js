@@ -5,16 +5,18 @@
 // deployment must be able to inject secrets without one.
 
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 let loaded = false
+const defaultEnvPath = fileURLToPath(new URL('../.env', import.meta.url))
 
-export function loadEnv(path = new URL('../.env', import.meta.url)) {
+export function loadEnv(path = defaultEnvPath) {
   if (loaded) return process.env
   loaded = true
   let text
   try { text = readFileSync(path, 'utf8') }
   catch { return process.env } // no .env — the process environment is all there is
-  for (const line of text.split('\n')) {
+  for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/)
     if (!match) continue
     const [, key, raw] = match

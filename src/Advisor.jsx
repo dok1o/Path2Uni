@@ -54,6 +54,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
   const { t, n, lang } = useT()
   const [state, setState] = useState({ loading: true })
   const [funding, setFunding] = useState(null)
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -63,13 +64,20 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
   }, [profile.id])
 
   useEffect(() => {
-    let alive = true
-    fetch(`/api/me/diagnosis?lang=${lang}`)
-      .then(response => response.json())
-      .then(payload => { if (alive) setState({ loading: false, ...payload }) })
-      .catch(() => { if (alive) setState({ loading: false, error: 'Could not reach the server.' }) })
-    return () => { alive = false }
-  }, [lang, profile.id, profile.destination, profile.field, profile.degree, profile.intake, profile.englishLevel])
+    const controller = new AbortController()
+    setState({ loading:true })
+    fetch(`/api/me/diagnosis?lang=${lang}`, { signal:controller.signal })
+      .then(async response => {
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(payload.error || 'Could not load your matches.')
+        if (!payload.diagnosis || !Array.isArray(payload.matches)) throw new Error('The matches response was incomplete.')
+        setState({ loading:false, ...payload })
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') setState({ loading:false, error:error.message || 'Could not reach the server.' })
+      })
+    return () => controller.abort()
+  }, [lang, profile.id, profile.destination, profile.field, profile.degree, profile.intake, profile.englishLevel, retry])
 
   const [picked, setPicked] = useState([])
   const [openReadiness, setOpenReadiness] = useState(null)
@@ -77,7 +85,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
     current.includes(id) ? current.filter(item => item !== id) : current.length >= 3 ? current : [...current, id])
 
   if (state.loading) return <main className="page advisor-page"><div className="auth-booting"><span className="map-spinner"/>{t('Reading your profile…')}</div></main>
-  if (state.error) return <main className="page advisor-page"><div className="auth-booting">{t(state.error)}</div></main>
+  if (state.error) return <main className="page advisor-page"><div className="advisor-error"><img src={mascot} alt=""/><h2>{t('My Matches could not load')}</h2><p>{t(state.error)}</p><button className="button primary" onClick={() => setRetry(value => value + 1)}>{t('Try again')} <span>{arrow}</span></button></div></main>
 
   const { diagnosis, matches = [] } = state
 
@@ -87,6 +95,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
         <span className="eyebrow purple">{t('STEP 3 · WHERE YOU STAND')}</span>
         <h1>{t('Your position, in plain words.')}</h1>
         <p>{diagnosis.summary}</p>
+        {state.refreshing && <span className="advisor-refresh"><i/>{t('Leo is refining these explanations in the background')}</span>}
       </div>
       <img src={mascot} alt="" className="advisor-mascot"/>
     </section>

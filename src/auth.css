@@ -21,6 +21,7 @@
 .auth-card input{border:1px solid var(--line);border-radius:13px;padding:13px 15px;font-size:15px;background:#fcfcff;transition:.16s}
 .auth-card input:focus{outline:0;border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(102,83,219,.11)}
 .auth-card label.bad input{border-color:#e07b8b;background:#fff7f8}
+.auth-card .auth-consent{display:grid;grid-template-columns:18px 1fr;align-items:start;gap:10px;margin-top:2px;cursor:pointer}.auth-card .auth-consent input{appearance:none;width:18px;height:18px;margin:1px 0 0;padding:0;border:1px solid #cfd1df;border-radius:5px;background:#fcfcff;display:grid;place-items:center;cursor:pointer;flex:none}.auth-card .auth-consent input:before{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) scale(0);transform-origin:center;transition:transform .14s ease}.auth-card .auth-consent input:checked{border-color:var(--purple);background:var(--purple)}.auth-card .auth-consent input:checked:before{transform:rotate(-45deg) scale(1)}.auth-card .auth-consent input:focus-visible{outline:0;box-shadow:0 0 0 4px rgba(102,83,219,.14)}.auth-card .auth-consent>span{font-size:11px;font-weight:500;line-height:1.5;letter-spacing:0;text-transform:none;color:#777d91}
 
 .auth-error{background:#fff1f3;border:1px solid #f2ccd3;color:#a8455a;border-radius:12px;padding:11px 13px;font-size:13px}
 .auth-submit{margin-top:6px;justify-content:center;width:100%}

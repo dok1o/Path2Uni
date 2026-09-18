@@ -10,7 +10,7 @@ import {
 } from './profiles.js'
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
-import { getActivity, setSubtaskProgress } from './activity.js'
+import { getActivity, getXpLeaderboard, setSubtaskProgress } from './activity.js'
 import { suggestOpportunities } from './opportunities.js'
 import { planEssay } from './essay.js'
 import { buildNotices } from './notices.js'
@@ -22,6 +22,24 @@ import { buildGraph } from '../src/services/planShape.js'
 import { readObjective, fields as FIELD_VOCAB } from '../src/services/planContext.js'
 
 const COOKIE = 'p2u_session'
+const adviceRefreshes = new Map()
+
+// Render deterministic matches immediately; when Gemini is configured it refines the same
+// result once in the background and the existing fingerprint cache serves it next time.
+function refreshAdviceInBackground({ key, apiKey, profile, tests, shortlist, fingerprint, lang, fieldTag }) {
+  if (!apiKey || adviceRefreshes.has(key)) return
+  const refresh = Promise.all([
+    diagnose({ apiKey, profile, tests, lang }),
+    explainMatches({ apiKey, profile, tests, shortlist, lang, fieldTag }),
+  ]).then(async ([diagnosis, matches]) => {
+    if (diagnosis.source?.kind === 'gemini') {
+      await writeCachedAdvice(profile, fingerprint, { diagnosis, matches })
+    }
+  }).catch(error => {
+    console.warn('[path2uni] My Matches background refresh failed:', error.message)
+  }).finally(() => adviceRefreshes.delete(key))
+  adviceRefreshes.set(key, refresh)
+}
 
 export const readCookie = (header, name = COOKIE) =>
   (header || '').split(';').map(part => part.trim().split('='))
@@ -138,7 +156,6 @@ export async function route(request) {
       const profile = await getProfile(me.id)
       if (!profile) return json(409, { error: 'Complete your profile first' })
       const tests = await getTests(me.id)
-      const plan = await getCurrentPlan(me.id)
       // The field is a hard filter. Without it the shortlist returns any university in the
       // country, and the explanation then has to justify a match that does not exist.
       const fieldTag = Object.values(FIELD_VOCAB).find(item => item.label === profile.field)?.tag ?? null
@@ -159,15 +176,13 @@ export async function route(request) {
       if (cached) return json(200, cached)
 
       const [diagnosis, matches] = await Promise.all([
-        diagnose({ apiKey, profile, tests, lang }),
-        explainMatches({ apiKey, profile, tests, shortlist, lang, fieldTag }),
+        diagnose({ apiKey:null, profile, tests, lang }),
+        explainMatches({ apiKey:null, profile, tests, shortlist, lang, fieldTag }),
       ])
-      // A rules-only answer means the model was unreachable; caching it would freeze the
-      // fallback in place until the profile changes.
-      if (diagnosis.source?.kind === 'gemini') {
-        await writeCachedAdvice(profile, fingerprint, { diagnosis, matches }).catch(() => {})
-      }
-      return json(200, { diagnosis, matches, cached: false })
+      refreshAdviceInBackground({
+        key:`${profile.id}:${fingerprint}`, apiKey, profile, tests, shortlist, fingerprint, lang, fieldTag,
+      })
+      return json(200, { diagnosis, matches, cached:false, refreshing:Boolean(apiKey) })
     }
 
     if (path === '/api/me/task' && method === 'POST') {
@@ -213,6 +228,10 @@ export async function route(request) {
 
     if (path === '/api/me/activity' && method === 'GET') {
       return json(200, await getActivity(me.id))
+    }
+
+    if (path === '/api/me/leaderboard' && method === 'GET') {
+      return json(200, { leaderboard:await getXpLeaderboard(me.id) })
     }
 
     if (path === '/api/me/subtask' && method === 'POST') {

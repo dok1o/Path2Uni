@@ -47,7 +47,7 @@ createServer((request, response) => {
     serveStatic(path, response).then(async served => {
       if (served) return
       // Single-page app: unknown paths fall back to index.html.
-      try { response.writeHead(200, { 'Content-Type': TYPES['.html'] }); response.end(await readFile(join(DIST, 'index.html'))) }
+      try { response.writeHead(404, { 'Content-Type': TYPES['.html'] }); response.end(await readFile(join(DIST, 'index.html'))) }
       catch { send({ status: 404, body: { error: 'Not found. Run `npm run build` first.' } }) }
     })
     return

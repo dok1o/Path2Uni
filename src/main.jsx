@@ -10,6 +10,8 @@ import './worldmap.css'
 import './auth.css'
 import './advisor.css'
 import './streak.css'
+import './footer.css'
+import './not-found.css'
 import { LanguageProvider } from './i18n.jsx'
 import App from './App.jsx'
 

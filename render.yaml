@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: path2uni
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    # Pre-deploy commands are paid-only on Render. The migration runner is idempotent,
+    # so it is safe to run before each start and after a free-instance cold boot.
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: P2U_KEYS
+        sync: false
+      - key: P2U_INDEX_KEY
+        sync: false

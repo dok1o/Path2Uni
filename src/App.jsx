@@ -278,15 +278,15 @@ function Friends({ friends, onAddFriend }) {
 }
 
 const examCatalog = [
-  { code:'SAT', name:'SAT', range:'400–1600' },
-  { code:'IELTS', name:'IELTS Academic', range:'0–9' },
-  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140' },
-  { code:'DET', name:'Duolingo English Test', range:'10–160' },
-  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120' },
-  { code:'ACT', name:'ACT', range:'1–36' },
+  { code:'SAT', name:'SAT', range:'400–1600', min:400, max:1600, step:10 },
+  { code:'IELTS', name:'IELTS Academic', range:'0–9', min:0, max:9, step:0.5 },
+  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140', min:0, max:140, step:1 },
+  { code:'DET', name:'Duolingo English Test', range:'10–160', min:10, max:160, step:5 },
+  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120', min:0, max:120, step:1 },
+  { code:'ACT', name:'ACT', range:'1–36', min:1, max:36, step:1 },
   { code:'CAMBRIDGE', name:'Cambridge English', range:'Score' },
-  { code:'IB', name:'IB Diploma', range:'0–45' },
-  { code:'AP', name:'AP Exams', range:'1–5' },
+  { code:'IB', name:'IB Diploma', range:'0–45', min:0, max:45, step:1 },
+  { code:'AP', name:'AP Exams', range:'1–5', min:1, max:5, step:1 },
   { code:'A_LEVEL', name:'A-level', range:'Grade' },
   { code:'OTHER', name:'Other exam', range:'Result' },
 ]
@@ -301,6 +301,18 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
   const update = (code, changes) => setTests(current => current.map(test => test.code === code ? { ...test, ...changes } : test))
   const submit = async event => {
     event.preventDefault()
+    const testWithoutDate = tests.find(test => test.selected && !test.date)
+    if (testWithoutDate) {
+      setError(`${testWithoutDate.name}: select a test date before saving.`)
+      return
+    }
+    const invalidTest = tests.find(test => test.selected && test.min != null && test.score !== '' && (
+      Number(test.score) < test.min || Number(test.score) > test.max || Math.abs((Number(test.score) - test.min) / test.step - Math.round((Number(test.score) - test.min) / test.step)) > 1e-9
+    ))
+    if (invalidTest) {
+      setError(`${invalidTest.name}: enter a score from ${invalidTest.min} to ${invalidTest.max} in increments of ${invalidTest.step}.`)
+      return
+    }
     setSaving(true); setError('')
     try {
       await onSave(tests.filter(test => test.selected))
@@ -314,7 +326,7 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
     <header><div><span className="eyebrow purple">PROFILE · TEST RESULTS</span><h1 id="exam-step-title">Which exams have you taken?</h1><p>Add completed tests or exams you are planning. You can update them later.</p></div><button type="button" className="exam-close" onClick={onClose} aria-label="Close">×</button></header>
     <div className="exam-list">{tests.map(test => <article key={test.code} className={test.selected ? 'selected' : ''}>
       <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{test.range}</small></span></label>
-      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" step="any" value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'completed' ? 'Test date' : 'Planned date'}</span><input type="date" value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
+      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="mock">МОК тест</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" min={test.min} max={test.max} step={test.step} value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'planned' ? 'Planned date' : 'Test date'} *</span><input type="date" required value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
     </article>)}</div>
     {error && <p className="exam-error">{error}</p>}
     <footer><small>These results will be used to match admission requirements.</small><button className="button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save and continue'} <span>{icons.arrow}</span></button></footer>

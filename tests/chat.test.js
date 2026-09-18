@@ -76,6 +76,29 @@ test('Leo refuses to invent scores, fees and deadlines', db, live, async () => {
   }
 })
 
+test('with no plan yet, Leo names no task and no university', db, live, async () => {
+  // Every other test here seeds a plan first, which is exactly why this slipped through:
+  // an empty context read as "not listed" and the model filled it in, citing a task called
+  // "Research University Options" that had never existed.
+  const { user } = await newUser()
+  const { profile } = await saveProfile(user.id, PROFILE)
+  for (const question of ['What should I do this week?', 'Tell me about my universities', 'What is my first task?']) {
+    const { reply } = await askLeo({ apiKey: key, profile, plan: null, message: question })
+    for (const invented of ['Semmelweis', 'Debrecen', 'Szeged', 'Pecs', 'Pécs']) {
+      assert.ok(!reply.includes(invented), `named a university with no shortlist: ${reply}`)
+    }
+    assert.ok(!/\byour (first |next )?task\b.{0,40}\bis\b/i.test(reply), `named a task with no plan: ${reply}`)
+  }
+})
+
+test('with no plan, the offline reply also points at the Decision Map', db, async () => {
+  const { user } = await newUser()
+  const { profile } = await saveProfile(user.id, PROFILE)
+  const { reply } = await askLeo({ apiKey: null, profile, plan: null, message: 'what now?' })
+  assert.match(reply, /Decision Map/i)
+  assert.ok(!/Semmelweis|Debrecen/.test(reply))
+})
+
 test('Leo does not invent universities outside the shortlist', db, live, async () => {
   const { user } = await newUser()
   const { profile } = await saveProfile(user.id, PROFILE)

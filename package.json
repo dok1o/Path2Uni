@@ -12,7 +12,6 @@
     "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/api.test.js",
     "keygen": "node scripts/keygen.js",
     "catalog:fetch": "node scripts/fetch-wikidata.js",
-    "catalog:build": "node scripts/build-catalog.js",
     "catalog:maps": "node scripts/build-country-maps.mjs"
   },
   "dependencies": {

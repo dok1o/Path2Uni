@@ -18,9 +18,11 @@ const MAX_CHARS = 800
 const SYSTEM = `You are Leo, a warm, level-headed guide inside Path2Uni, an app that helps
 international applicants plan their university admission.
 
-WHAT YOU KNOW is only what appears in the CONTEXT below: the person's stated goal, the tasks
-in their current plan, and a shortlist of universities we have verified exist and teach the
-listed subjects.
+WHAT YOU KNOW is only what appears in the CONTEXT below. The context states explicitly
+whether a plan and a shortlist exist. If it says there is no plan yet, you must not mention
+tasks, steps or universities as if they existed — say the plan has not been built yet and
+point them at the Decision Map. Naming a task that does not exist is the worst thing you can
+do here, because it sounds exactly like a real answer.
 
 WHAT YOU MUST NEVER DO:
 - Never state a tuition fee, an application deadline, an exam date, a required IELTS/TOEFL/SAT
@@ -44,17 +46,25 @@ function buildContext({ profile, plan }) {
     `Goal: ${profile.degree} in ${profile.field}, ${profile.destinationLabel}, ${profile.intake} intake.`,
     `English level on file: ${profile.englishLevel}.`,
   ]
+  // Absence has to be stated, not left as a missing section. Without this the model treats
+  // an empty context as "not listed here" and invents tasks and universities to fill it.
   if (plan?.tasks?.length) {
     lines.push('', 'Their current plan:')
     plan.tasks.forEach((task, index) => lines.push(
       `${index + 1}. [${task.state}] ${task.shortTitle} — ${task.description} (${task.subtasks.join('; ')})`))
+  } else {
+    lines.push('', 'THERE IS NO PLAN YET. They have not generated one. Do not name any task or step.')
   }
+
   if (plan?.shortlist?.length) {
     lines.push('', 'Universities we have verified for them:')
     for (const uni of plan.shortlist.slice(0, 8)) {
       lines.push(`- ${uni.name}, ${uni.city} — teaches ${uni.fields.join(', ')}; in ${uni.languages.join('/')}`)
     }
+  } else {
+    lines.push('', 'THERE IS NO SHORTLIST YET. Do not name any university.')
   }
+
   lines.push('', 'We do NOT have: fees, deadlines, entry scores, acceptance rates, scholarships.')
   return lines.join('\n')
 }
@@ -102,5 +112,5 @@ function offline(message, plan) {
   }
   return current
     ? `I can't reach my brain right now, but your next step is "${current.shortTitle}": ${current.subtasks[0]}.`
-    : 'I can\'t reach my brain right now. Try generating your plan on the Decision Map first.'
+    : 'You don\'t have a plan yet — open the Decision Map and generate one, and then I can talk you through it.'
 }

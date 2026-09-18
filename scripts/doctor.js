@@ -73,15 +73,23 @@ if (dockerUp) {
   const { isReachable, pool } = await import('../server/db.js')
   if (await isReachable()) {
     console.log(ok(`Postgres reachable on port ${process.env.CORE_DB_PORT || 5432}`))
+    // One probe per migration that added something the app now reads. Init scripts run only
+    // against a fresh volume, so an existing database silently lacks every later file.
     const { rows } = await pool.query(
-      `select count(*) filter (where table_name = 'profile_advice') as advice,
-              count(*) filter (where table_name = 'profile_tests') as tests
-       from information_schema.tables where table_schema = 'public'`)
-    if (Number(rows[0].advice) && Number(rows[0].tests)) console.log(ok('Migrations applied'))
-    else fail('The database is missing recent migrations',
-      'Init scripts only run against a fresh volume. Apply the newer ones by hand:',
-      '  docker compose exec core-db psql -U path2uni -d path2uni_core \\',
-      '    -f /docker-entrypoint-initdb.d/007_diagnosis_and_progress.sql')
+      `select count(*) filter (where table_name = 'profile_tests') as m006,
+              count(*) filter (where table_name = 'profile_advice') as m007,
+              count(*) filter (where table_name = 'applicant_profiles'
+                                and column_name = 'target_countries') as m008
+         from information_schema.columns where table_schema = 'public'`)
+    const missing = [
+      Number(rows[0].m006) ? null : '006_profile_tests.sql',
+      Number(rows[0].m007) ? null : '007_diagnosis_and_progress.sql',
+      Number(rows[0].m008) ? null : '008_multi_destination.sql',
+    ].filter(Boolean)
+    if (!missing.length) console.log(ok('Migrations applied'))
+    else fail(`The database is missing ${missing.length} migration${missing.length === 1 ? '' : 's'}: ${missing.join(', ')}`,
+      'Init scripts only run against a fresh volume. Apply them in order, by hand:',
+      ...missing.map(file => `  docker compose exec core-db psql -U path2uni -d path2uni_core -f /docker-entrypoint-initdb.d/${file}`))
   } else {
     fail(`Postgres is not answering on port ${process.env.CORE_DB_PORT || 5432}`,
       'docker compose up -d core-db',

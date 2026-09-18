@@ -179,3 +179,33 @@ test('shortlist exposes only display-safe fields', () => {
   assert.deepEqual(Object.keys(first).sort(),
     ['city', 'country', 'fields', 'languages', 'levels', 'name', 'website'])
 })
+
+test('several countries are interleaved, not concatenated', () => {
+  const picked = shortlistUniversities({ countries: ['de', 'nl', 'it'], limit: 6 })
+  assert.equal(picked.length, 6)
+  // The whole point: three chosen countries must produce three countries, not the six
+  // best-scoring universities of whichever one sorts first.
+  assert.equal(new Set(picked.map(item => item.country)).size, 3)
+  assert.deepEqual(picked.slice(0, 3).map(item => item.country),
+    picked.slice(3, 6).map(item => item.country), 'rounds keep the chosen order')
+})
+
+test('a country with nothing to offer does not shrink the shortlist', () => {
+  // 'jp' is not in the curated layer, so its queue is empty from the first round.
+  const picked = shortlistUniversities({ countries: ['de', 'jp'], limit: 5 })
+  assert.equal(picked.length, 5)
+  assert.ok(picked.every(item => item.country === 'Germany'))
+})
+
+test('a single country still filters exactly as before', () => {
+  const asList = shortlistUniversities({ countries: ['nl'], field: 'cs', limit: 4 })
+  const asScalar = shortlistUniversities({ country: 'nl', field: 'cs', limit: 4 })
+  assert.deepEqual(asList, asScalar)
+  assert.ok(asList.length > 0)
+})
+
+test('the field stays a hard filter across every chosen country', () => {
+  const picked = shortlistUniversities({ countries: ['de', 'nl', 'hu'], field: 'med', limit: 9 })
+  assert.ok(picked.every(item => item.fields.includes('med')),
+    'a university that does not teach the subject is not a match in any country')
+})

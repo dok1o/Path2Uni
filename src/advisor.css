@@ -28,7 +28,9 @@
 .match-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:19px;display:flex;flex-direction:column;gap:12px;transition:.18s}
 .match-card.picked{border-color:var(--purple);box-shadow:0 0 0 3px rgba(102,83,219,.12)}
 .match-card header{display:flex;align-items:flex-start;gap:10px}
-.match-card h3{font-size:15px;line-height:1.3;flex:1}
+.match-title{flex:1;display:flex;flex-direction:column;gap:3px}
+.match-card h3{font-size:15px;line-height:1.3}
+.match-place{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.01em}
 .match-rank{font-size:10px;font-weight:700;color:var(--purple);background:var(--lilac);border-radius:7px;padding:4px 7px}
 .match-pick{flex:none;width:28px;height:28px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:14px;color:var(--muted)}
 .match-pick.on{background:var(--purple);border-color:var(--purple);color:#fff}

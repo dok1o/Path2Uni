@@ -55,9 +55,15 @@ const MATCH_SCHEMA = {
   required: ['matches'],
 }
 
+const destinationsOf = profile => (profile.destinations?.length ? profile.destinations : [profile.destination]).filter(Boolean)
+const labelsOf = profile => (profile.destinationLabels?.length ? profile.destinationLabels : [profile.destinationLabel]).filter(Boolean)
+
 const profileLines = (profile, tests) => {
+  const labels = labelsOf(profile)
   const lines = [
-    `Destination: ${profile.destinationLabel}`,
+    labels.length > 1
+      ? `Destinations, in their order of preference: ${labels.join(', ')}. They have not decided between them yet — do not write as if they had.`
+      : `Destination: ${labels[0]}`,
     `Level: ${profile.degree}`,
     `Field: ${profile.field}`,
     `Intake year: ${profile.intake}`,
@@ -83,7 +89,7 @@ const profileLines = (profile, tests) => {
  */
 export function adviceFingerprint(profile, tests = []) {
   const parts = [
-    profile.destination, profile.degree, profile.field, profile.intake, profile.englishLevel,
+    destinationsOf(profile).join(','), profile.degree, profile.field, profile.intake, profile.englishLevel,
     ...tests.map(test => `${test.test_code}:${test.status}:${test.score ?? test.score_text ?? ''}`).sort(),
   ]
   return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32)
@@ -109,26 +115,44 @@ export async function writeCachedAdvice(profile, fingerprint, { diagnosis, match
 
 /** Stage 3: the profile read back, with strengths, gaps and the goal. */
 export async function diagnose({ apiKey, profile, tests }) {
-  const requirements = requirementsFor({ country: profile.destination, id: null })
+  const countries = destinationsOf(profile)
+  const labels = labelsOf(profile)
+  // The primary destination decides the English read, because that is the one the roadmap is
+  // written for; the others are described so the model can say how they differ.
+  const requirements = requirementsFor({ country: countries[0], id: null })
   const gap = englishGap({ englishLevel: profile.englishLevel, tests }, requirements?.english)
+
+  const describe = (iso, label) => {
+    const found = requirementsFor({ country: iso, id: null })
+    if (!found) return `- ${label}: no requirement data`
+    return [
+      `- ${label}: English usually around ${found.english.test} ${found.english.band};`,
+      `tuition usually ${found.tuition.min}–${found.tuition.max} ${found.tuition.currency} per ${found.tuition.period};`,
+      `rounds usually ${found.rounds.map(r => `${r.name} ${r.opens}–${r.closes}`).join('; ')}.`,
+      found.gpaGuidance,
+    ].join(' ')
+  }
 
   const facts = [
     ...profileLines(profile, tests),
     '',
-    'DEMONSTRATION data for this destination (say "typically", never "you need"):',
-    requirements ? `- English usually around ${requirements.english.test} ${requirements.english.band}` : '- no requirement data',
-    requirements ? `- Entry note: ${requirements.gpaGuidance}` : '',
-    requirements ? `- Application rounds usually ${requirements.rounds.map(r => `${r.name} ${r.opens}–${r.closes}`).join('; ')}` : '',
-    requirements ? `- Tuition usually ${requirements.tuition.min}–${requirements.tuition.max} ${requirements.tuition.currency} per ${requirements.tuition.period}` : '',
+    'DEMONSTRATION data per destination (say "typically", never "you need"):',
+    ...countries.map((iso, index) => describe(iso, labels[index] ?? iso)),
     '',
-    `Our own read of their English: ${gap.detail}`,
+    `Our own read of their English against ${labels[0]}: ${gap.detail}`,
+    countries.length > 1
+      ? 'One of their gaps should be that the choice between these countries is still open, and name what actually separates them.'
+      : '',
   ].filter(Boolean)
 
   const fallback = () => ({
-    summary: `You are aiming for a ${String(profile.degree).toLowerCase()} in ${profile.field} in ${profile.destinationLabel}, starting ${profile.intake}.`,
-    strengths: [`A clear destination and field already chosen`, `English recorded at ${profile.englishLevel}`],
-    gaps: [gap.status === 'clear' ? 'Documents and the application itself' : 'An English certificate that proves your level', 'Deadlines to confirm on official pages'],
-    goal: `Study ${profile.field} in ${profile.destinationLabel} from ${profile.intake}.`,
+    summary: `You are aiming for a ${String(profile.degree).toLowerCase()} in ${profile.field} in ${labels.join(' or ')}, starting ${profile.intake}.`,
+    strengths: [labels.length > 1 ? `${labels.length} destinations shortlisted and a field already chosen` : 'A clear destination and field already chosen', `English recorded at ${profile.englishLevel}`],
+    gaps: [
+      gap.status === 'clear' ? 'Documents and the application itself' : 'An English certificate that proves your level',
+      labels.length > 1 ? `The choice between ${labels.join(', ')} is still open` : 'Deadlines to confirm on official pages',
+    ],
+    goal: `Study ${profile.field} in ${labels.join(' or ')} from ${profile.intake}.`,
     source: { kind: 'rules' },
     evidence: 'demo',
     notice: DEMO_NOTICE,
@@ -161,7 +185,7 @@ export async function diagnose({ apiKey, profile, tests }) {
 
 /** Stage 4: why each shortlisted university suits this person. */
 export async function explainMatches({ apiKey, profile, tests, shortlist }) {
-  const picked = shortlist.slice(0, 5)
+  const picked = shortlist.slice(0, 6)
   if (!picked.length) return []
 
   const enriched = picked.map(entry => {
@@ -171,6 +195,7 @@ export async function explainMatches({ apiKey, profile, tests, shortlist }) {
       id: record?.id ?? entry.name,
       name: entry.name,
       city: entry.city,
+      country: entry.country,
       fields: entry.fields,
       languages: entry.languages,
       levels: entry.levels,
@@ -182,6 +207,8 @@ export async function explainMatches({ apiKey, profile, tests, shortlist }) {
   const fallback = () => enriched.map(item => ({
     id: item.id,
     name: item.name,
+    city: item.city,
+    country: item.country,
     why: `${item.name} teaches ${item.fields.map(f => FIELD_LABELS[f] ?? f).slice(0, 2).join(' and ')} in ${item.city}, at the level you are aiming for.`,
     watch: item.gap.detail,
     requirements: item.requirements,
@@ -222,6 +249,8 @@ export async function explainMatches({ apiKey, profile, tests, shortlist }) {
       return {
         id: item.id,
         name: item.name,
+        city: item.city,
+        country: item.country,
         why: match ? String(match.why).slice(0, 320) : `${item.name} teaches your field in ${item.city}.`,
         watch: match ? String(match.watch).slice(0, 200) : item.gap.detail,
         requirements: item.requirements,

@@ -16,6 +16,9 @@ function money({ min, max, currency, period }) {
   return `${min === 0 ? 'from 0' : format(min)}–${format(max)} ${currency} / ${period}`
 }
 
+/** Which of the chosen countries the shortlist actually reached, in the order they appear. */
+const countriesIn = matches => [...new Set(matches.map(match => match.country).filter(Boolean))]
+
 const GAP_TONE = { clear: 'good', likely: 'good', just: 'warn', plan: 'warn', short: 'bad', unknown: 'warn' }
 
 export default function Advisor({ profile, onCompare, onOpenPlan }) {
@@ -69,7 +72,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
       <div>
         <span className="eyebrow purple">STEP 4 · WHY THESE</span>
         <h2>{matches.length} universities that fit your answers</h2>
-        <p>Each one teaches your field, at your level, in a language you can study in.</p>
+        <p>Each one teaches your field, at your level, in a language you can study in{countriesIn(matches).length > 1 ? `, across ${countriesIn(matches).join(', ')}` : ''}.</p>
       </div>
       <div className="compare-bar">
         <span>{picked.length ? `${picked.length} selected` : 'Pick 2 or 3 to compare'}</span>
@@ -87,7 +90,10 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
           initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * .05 }}>
           <header>
             <span className="match-rank">0{index + 1}</span>
-            <h3>{match.name}</h3>
+            <div className="match-title">
+              <h3>{match.name}</h3>
+              {(match.city || match.country) && <small className="match-place">{[match.city, match.country].filter(Boolean).join(', ')}</small>}
+            </div>
             <button className={`match-pick ${picked.includes(match.id) ? 'on' : ''}`} onClick={() => toggle(match.id)}
               aria-pressed={picked.includes(match.id)} aria-label={`Select ${match.name} to compare`}>
               {picked.includes(match.id) ? '✓' : '+'}
@@ -114,7 +120,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
 /** Stage 5: two or three options side by side on the things that decide between them. */
 export function Comparison({ items, onClose }) {
   const rows = useMemo(() => [
-    { label: 'City', get: item => item.requirements ? item.name.split(' ').slice(-1)[0] : '—', plain: true },
+    { label: 'Where', get: item => [item.city, item.country].filter(Boolean).join(', ') || '—', plain: true },
     { label: 'English usually asked', get: item => item.requirements ? `${item.requirements.english.test} ${item.requirements.english.band}` : '—' },
     { label: 'Tuition', get: item => item.requirements ? money(item.requirements.tuition) : '—' },
     { label: 'Application rounds', get: item => item.requirements ? item.requirements.rounds.map(r => `${r.name}: ${r.opens}–${r.closes}`).join('; ') : '—' },

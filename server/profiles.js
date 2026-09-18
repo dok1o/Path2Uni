@@ -24,10 +24,33 @@ export const fieldOptions = [...new Map(Object.values(fields).map(field => [fiel
 export const levelOptions = Object.values(degrees)
 export const englishLevels = ['A2', 'B1', 'B2', 'C1', 'C2']
 
+const MAX_DESTINATIONS = 4
+
+/**
+ * Destinations come in as a list in preference order. A client that still sends a single
+ * `destination` is read as a one-element list, because the onboarding is not the only writer —
+ * the profile editor and the tests suite both predate the change.
+ */
+function readDestinations(input) {
+  const raw = Array.isArray(input.destinations) ? input.destinations
+    : input.destination ? [input.destination] : []
+  const picked = []
+  for (const iso of raw) {
+    const match = destinationOptions.find(item => item.iso === iso)
+    // Silently dropping an unknown code would let a typo shrink the list without saying so.
+    if (!match) return { error: 'Choose your destinations from the list.' }
+    if (!picked.some(item => item.iso === match.iso)) picked.push(match)
+  }
+  if (!picked.length) return { error: 'Choose at least one destination.' }
+  if (picked.length > MAX_DESTINATIONS) return { error: `Pick up to ${MAX_DESTINATIONS} countries — more than that stops being a comparison.` }
+  return { picked }
+}
+
 export function validateProfile(input = {}) {
   const errors = {}
-  const destination = destinationOptions.find(item => item.iso === input.destination)
-  if (!destination) errors.destination = 'Choose a destination from the list.'
+  const chosen = readDestinations(input)
+  if (chosen.error) errors.destination = chosen.error
+  const destination = chosen.picked?.[0]
 
   const level = String(input.degree || '').toLowerCase()
   if (!LEVELS.has(level)) errors.degree = 'Choose a degree level.'
@@ -46,26 +69,47 @@ export function validateProfile(input = {}) {
 
   return Object.keys(errors).length
     ? { errors }
-    : { value: { destination: destination.iso, destinationLabel: destination.label, degree: level, field: field.label, intake: year, englishLevel: english } }
+    : {
+      value: {
+        // The head of the list is the primary destination: what the plan is written for and
+        // what target_country_code stores. The rest widen the shortlist.
+        destination: destination.iso,
+        destinationLabel: destination.label,
+        destinations: chosen.picked.map(item => item.iso),
+        destinationLabels: chosen.picked.map(item => item.label),
+        degree: level, field: field.label, intake: year, englishLevel: english,
+      },
+    }
 }
 
 // `target_level` is stored as the education_level enum, which is lowercase. The client
 // renders this straight into chips and headings, so present it the way it should read.
 const titleCase = value => (value ? value.charAt(0).toUpperCase() + value.slice(1) : value)
 
-const rowToProfile = row => row && ({
+const labelFor = iso => destinationOptions.find(item => item.iso === iso)?.label ?? iso
+
+const rowToProfile = row => {
+  if (!row) return row
+  // A profile written before 008 has the scalar column only; read it as a one-element list
+  // rather than making every caller handle the empty array.
+  const list = row.target_countries?.length ? row.target_countries.map(iso => iso.trim())
+    : row.target_country_code ? [row.target_country_code] : []
+  return {
   id: row.id,
   destination: row.target_country_code,
-  destinationLabel: destinationOptions.find(item => item.iso === row.target_country_code)?.label ?? row.target_country_code,
+  destinationLabel: labelFor(row.target_country_code),
+  destinations: list,
+  destinationLabels: list.map(labelFor),
   degree: titleCase(row.target_level),
   field: row.target_field,
   intake: row.target_start_year,
   englishLevel: row.english_level,
-})
+  }
+}
 
 export async function getProfile(userId) {
   const { rows } = await query(
-    `select id, target_country_code, target_level, target_field, target_start_year, english_level
+    `select id, target_country_code, target_countries, target_level, target_field, target_start_year, english_level
      from applicant_profiles where user_id = $1`, [userId])
   return rowToProfile(rows[0]) ?? null
 }
@@ -73,26 +117,33 @@ export async function getProfile(userId) {
 export async function saveProfile(userId, input) {
   const checked = validateProfile(input)
   if (checked.errors) return { errors: checked.errors }
-  const { destination, degree, field, intake, englishLevel } = checked.value
+  const { destination, destinations, degree, field, intake, englishLevel } = checked.value
 
   // One profile per user, so an upsert rather than insert-or-update branching.
   const { rows } = await query(
     `insert into applicant_profiles
-       (user_id, target_level, target_country_code, target_field, target_start_year, english_level)
-     values ($1, $2::education_level, $3, $4, $5, $6)
+       (user_id, target_level, target_country_code, target_countries, target_field, target_start_year, english_level)
+     values ($1, $2::education_level, $3, $4::char(2)[], $5, $6, $7)
      on conflict (user_id) do update set
        target_level = excluded.target_level,
        target_country_code = excluded.target_country_code,
+       target_countries = excluded.target_countries,
        target_field = excluded.target_field,
        target_start_year = excluded.target_start_year,
        english_level = excluded.english_level,
        updated_at = now()
-     returning id, target_country_code, target_level, target_field, target_start_year, english_level`,
-    [userId, degree, destination, field, intake, englishLevel])
+     returning id, target_country_code, target_countries, target_level, target_field, target_start_year, english_level`,
+    [userId, degree, destination, destinations, field, intake, englishLevel])
   return { profile: rowToProfile(rows[0]) }
 }
 
-/** The shape the plan generator expects, built from stored columns. */
+/**
+ * The shape the plan generator expects, built from stored columns.
+ *
+ * Only the primary destination goes in: a roadmap is a sequence of steps through ONE
+ * admission system, with its own rounds, documents and visa route. The other countries widen
+ * the shortlist (see shortlistUniversities), they do not multiply the plan.
+ */
 export const profileForPlanning = profile => profile && ({
   destination: profile.destinationLabel,
   degree: profile.degree,

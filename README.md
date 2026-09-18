@@ -47,9 +47,9 @@ the API from one origin on `:8787`, which is what the session cookie needs.
 | Stage | Where it lives |
 |---|---|
 | 1. Sign in | `src/Auth.jsx` — username and password, no email |
-| 2. Profile | `src/Onboarding.jsx` (destination, level, field, intake, English) and the exam step in `src/App.jsx` |
+| 2. Profile | `src/Onboarding.jsx` (up to 3 destinations, level, field, intake, English) and the exam step in `src/App.jsx`. **Edit profile** reopens it prefilled |
 | 3. Diagnosis | **My matches** — profile read back, strengths, gaps, goal |
-| 4. Recommendations | same page — each match with why it fits and what to check |
+| 4. Recommendations | same page — each match with why it fits and what to check, drawn from every chosen country |
 | 5. Comparison | pick 2–3 and compare on English, tuition, rounds, documents |
 | 6. Roadmap | **My path** — ordered tasks with subtasks |
 | 7. Next step | the first task is the current one; **Why this step?** opens its node on the Decision Map |
@@ -98,7 +98,8 @@ free tier returns transient `503`s and retires model ids without notice. A model
   model for pixel coordinates and it returns overlapping nonsense.
 - **Diagnosis and match explanations** (`server/advisor.js`) — explanation only. The
   universities come from the catalogue and the field is a hard filter; a university the model
-  invents is dropped, one it omits gets a deterministic sentence.
+  invents is dropped, one it omits gets a deterministic sentence. With several destinations the
+  shortlist is interleaved between them, so the comparison spans the countries actually chosen.
 - **Leo** (`server/chat.js`) — answers from the profile, the plan and the shortlist. Told to
   refuse rather than guess, and the context states explicitly when there is no plan yet,
   because an empty context otherwise reads as "not listed" and gets filled in.
@@ -131,7 +132,7 @@ ids and contacts never reach a prompt.
 ## Tests
 
 ```bash
-npm test        # 145 tests, no network, under a second
+npm test        # 157 tests, no network, under a second
 npm run test:live   # adds real Gemini calls and a live HTTP server (spends quota)
 ```
 
@@ -159,7 +160,7 @@ next number, and apply it by hand to an existing database:
 
 ```bash
 docker compose exec core-db psql -U path2uni -d path2uni_core \
-  -f /docker-entrypoint-initdb.d/006_profile_tests.sql
+  -f /docker-entrypoint-initdb.d/008_multi_destination.sql
 ```
 
 `CLAUDE.md` carries the longer architectural notes and the constraints that are easy to break.

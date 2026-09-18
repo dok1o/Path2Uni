@@ -125,9 +125,15 @@ export async function route(request) {
       // The field is a hard filter. Without it the shortlist returns any university in the
       // country, and the explanation then has to justify a match that does not exist.
       const fieldTag = Object.values(FIELD_VOCAB).find(item => item.label === profile.field)?.tag ?? null
-      const shortlist = plan?.shortlist?.length ? plan.shortlist : shortlistUniversities({
-        country: profile.destination, field: fieldTag,
-        level: String(profile.degree).toLowerCase(), limit: 5,
+      // Built from every chosen destination, not from the plan's shortlist. The two answer
+      // different questions: the roadmap walks one admission system, while the matches are
+      // where the person is still deciding — and a comparison inside a single country is not
+      // the comparison they opened this page for.
+      const countries = profile.destinations?.length ? profile.destinations : [profile.destination]
+      const shortlist = shortlistUniversities({
+        countries, field: fieldTag,
+        level: String(profile.degree).toLowerCase(),
+        limit: countries.length > 1 ? 6 : 5,
       })
       // Regenerated only when the answers it was built from change.
       const fingerprint = adviceFingerprint(profile, tests)

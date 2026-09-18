@@ -229,10 +229,18 @@ export const cityLoad = cities.map(city => ({ ...city, count: universitiesIn(cit
 /**
  * Retrieval step for plan generation: narrows the curated layer to a shortlist small
  * enough to send to a model. Never send the whole catalogue — it is 10k rows of names.
+ *
+ * `countries` takes a list in preference order and the result is interleaved between them,
+ * so three chosen countries produce a shortlist from three countries rather than the twelve
+ * best-scoring universities of whichever one happens to sort first. That interleaving is the
+ * whole point: an applicant choosing between Germany and the Netherlands needs to see both,
+ * and a comparison between five German universities is not the comparison they came for.
+ * `country` remains for the single-destination callers.
  */
-export function shortlistUniversities({ country, field, level, lang, limit = 12 } = {}) {
-  const scored = universities
-    .filter(uni => !country || uni.country === country)
+export function shortlistUniversities({ country, countries, field, level, lang, limit = 12 } = {}) {
+  const wanted = (Array.isArray(countries) ? countries : country ? [country] : []).filter(Boolean)
+
+  const rank = pool => pool
     .filter(uni => !level || uni.levels.includes(level))
     .filter(uni => !lang || uni.langs.includes(lang))
     // A requested field is a hard filter: telling the model a university "matches" when it
@@ -240,7 +248,27 @@ export function shortlistUniversities({ country, field, level, lang, limit = 12 
     .filter(uni => !field || uni.fields.includes(field))
     .map(uni => ({ uni, score: (uni.langs[0] === 'en' ? 1 : 0) + (field ? uni.fields.indexOf(field) === 0 ? 1 : 0 : 0) }))
     .sort((a, b) => b.score - a.score)
-  return scored.slice(0, limit).map(({ uni }) => ({
+    .map(({ uni }) => uni)
+
+  let picked
+  if (wanted.length <= 1) {
+    picked = rank(universities.filter(uni => !wanted.length || uni.country === wanted[0])).slice(0, limit)
+  } else {
+    // One queue per country, drained a round at a time. A country with nothing left is simply
+    // skipped, so a narrow field in one destination does not shrink the whole shortlist.
+    const queues = wanted.map(iso => rank(universities.filter(uni => uni.country === iso)))
+    picked = []
+    for (let round = 0; picked.length < limit; round += 1) {
+      const before = picked.length
+      for (const queue of queues) {
+        if (picked.length >= limit) break
+        if (queue[round]) picked.push(queue[round])
+      }
+      if (picked.length === before) break // every queue is exhausted
+    }
+  }
+
+  return picked.map(uni => ({
     name: uni.name,
     city: cityById[uni.city]?.name,
     country: countryByIso[uni.country]?.name,

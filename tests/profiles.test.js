@@ -82,6 +82,77 @@ test('a destination outside the curated set is refused even if it exists in plan
   assert.ok(validateProfile({ ...VALID, destination: 'fr' }).errors?.destination)
 })
 
+// ---------- several destinations ----------
+
+test('a list of destinations validates, in the order it was given', () => {
+  const { value, errors } = validateProfile({ ...VALID, destination: undefined, destinations: ['de', 'nl', 'hu'] })
+  assert.equal(errors, undefined)
+  assert.deepEqual(value.destinations, ['de', 'nl', 'hu'])
+  assert.deepEqual(value.destinationLabels, ['Germany', 'Netherlands', 'Hungary'])
+  // The head of the list is the primary: what the roadmap is written for.
+  assert.equal(value.destination, 'de')
+  assert.equal(value.destinationLabel, 'Germany')
+})
+
+test('a single destination is still accepted and read as a one-element list', () => {
+  // The profile editor and older clients send the scalar; they must keep working.
+  const { value } = validateProfile(VALID)
+  assert.deepEqual(value.destinations, ['hu'])
+  assert.equal(value.destination, 'hu')
+})
+
+test('one bad code in the list fails the whole list rather than being dropped', () => {
+  // Silently ignoring it would let a typo shrink someone's shortlist without telling them.
+  assert.ok(validateProfile({ ...VALID, destinations: ['de', 'zz'] }).errors?.destination)
+  assert.ok(validateProfile({ ...VALID, destinations: ['de', 'fr'] }).errors?.destination,
+    'a country with no curated universities is not a usable destination')
+})
+
+test('an empty or oversized list is refused', () => {
+  assert.ok(validateProfile({ ...VALID, destination: undefined, destinations: [] }).errors?.destination)
+  assert.ok(validateProfile({ ...VALID, destinations: ['de', 'nl', 'hu', 'it', 'pl'] }).errors?.destination)
+})
+
+test('the same country twice counts once', () => {
+  const { value } = validateProfile({ ...VALID, destinations: ['de', 'de', 'nl'] })
+  assert.deepEqual(value.destinations, ['de', 'nl'])
+})
+
+test('destinations round-trip through the database with the primary kept in sync', db, async () => {
+  const { user } = await newUser()
+  const { profile } = await saveProfile(user.id, { ...VALID, destinations: ['nl', 'de', 'it'] })
+  assert.deepEqual(profile.destinations, ['nl', 'de', 'it'])
+  assert.equal(profile.destination, 'nl')
+
+  const read = await getProfile(user.id)
+  assert.deepEqual(read.destinations, ['nl', 'de', 'it'])
+  assert.deepEqual(read.destinationLabels, ['Netherlands', 'Germany', 'Italy'])
+  assert.equal(read.destination, 'nl', 'the scalar column must equal the head of the array')
+
+  // 008 makes disagreement between the two unstorable, so a future writer that updates one
+  // and forgets the other fails loudly instead of leaving a profile that reads two ways.
+  await assert.rejects(
+    query('update applicant_profiles set target_country_code = $1 where id = $2', ['de', read.id]),
+    /applicant_profiles_primary_country_matches/)
+})
+
+test('narrowing to one destination drops the others', db, async () => {
+  const { user } = await newUser()
+  await saveProfile(user.id, { ...VALID, destinations: ['nl', 'de'] })
+  const { profile } = await saveProfile(user.id, { ...VALID, destinations: ['de'] })
+  assert.deepEqual(profile.destinations, ['de'])
+  assert.equal((await getProfile(user.id)).destination, 'de')
+})
+
+test('the roadmap is written for the primary destination only', db, async () => {
+  // A plan is a walk through one admission system — its rounds, documents and visa route.
+  // The other countries widen the shortlist; they do not multiply the plan.
+  const { user } = await newUser()
+  await saveProfile(user.id, { ...VALID, destinations: ['nl', 'de'] })
+  const shape = profileForPlanning(await getProfile(user.id))
+  assert.equal(shape.destination, 'Netherlands')
+})
+
 // ---------- storage ----------
 
 test('a profile saves, reads back and is scoped to its owner', db, async () => {

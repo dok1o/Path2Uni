@@ -74,10 +74,22 @@ Constraints that are easy to break:
 - **`deidentify()` and `readObjective()` take request-body input, so they must tolerate garbage.** A `languages` that is a string rather than an array used to throw a `TypeError` and turn a request into a 500; `tests/plan.test.js` pins that behaviour.
 - **`matched` counts only what the objective text itself named**, never a value inherited from the profile — otherwise confidence is inflated on an empty objective.
 - **A field passed to `shortlistUniversities` is a hard filter, not a ranking hint.** It once let English-taught universities through that did not teach the subject, which put false "matches" into the prompt.
+- **`shortlistUniversities({countries})` interleaves, it does not concatenate.** One queue per country, drained a round at a time, so three chosen countries produce three countries rather than the best-scoring six of whichever sorts first. A country with nothing left is skipped, so a narrow field in one destination never shrinks the whole shortlist. The single-country `country` argument still works and must keep returning exactly what it did.
 - **`task.type` must stay `research` | `documents` | `application`.** `TaskIcon` and the `.osint-node.task.*` / `.panel-task-icon.*` CSS only cover those three; a fourth type renders as a bare fallback icon with default colors.
 - **Graph `x`/`y` are percentages of the OSINT canvas, and a node card is ~20% of it wide and ~9% tall.** Two nodes closer than that in both axes visibly overlap. Current layout keeps fixed nodes on the left (`profile`/`goal`/`source`/`requirement`) and staggers tasks down `x: 74/86`.
 - **GamePath computes level `top` and the SVG trail from the task count** — nothing about the map is hardcoded to 3 levels any more, including the two decorative `.path-reward` chips, which are placed in the gaps between levels.
 - `edges` are `[fromId, toId]` pairs referencing node ids; the OSINT inspector finds neighbours by flattening edges containing the selected id, so every task id must also exist as a node id.
+
+## Destinations: several countries, one roadmap
+
+An applicant picks up to three countries at onboarding ([src/Onboarding.jsx](src/Onboarding.jsx), the one multi-answer step), and `applicant_profiles` stores them in preference order. The split that keeps this coherent:
+
+- **The shortlist spans every chosen country; the roadmap is written for the first one only.** A plan is a walk through one admission system — its rounds, its documents, its visa route — so `profileForPlanning()` passes the primary destination alone. The other countries widen what **My matches** shows, they do not multiply the plan. `tests/profiles.test.js` pins this.
+- **`target_countries[1]` equals `target_country_code`, and [008_multi_destination.sql](database/core/008_multi_destination.sql) enforces it with a CHECK.** The scalar column carries the index from 005 and everything already reading it; the array is an addition, not a replacement. One fact stored twice is only safe while the database refuses to let the two disagree.
+- **A profile written before 008 has no array.** `rowToProfile` reads the scalar as a one-element list, and `destinationLabels()` in [src/App.jsx](src/App.jsx) falls back the same way — otherwise an older profile renders an empty chip row.
+- **`validateProfile` fails the whole list on one bad code** rather than dropping it. Silently ignoring a typo would shrink someone's shortlist without telling them.
+- **`/api/me/diagnosis` builds its own shortlist and no longer reuses the plan's.** The two answer different questions, and reusing the plan's would quietly collapse the matches back to a single country.
+- The advice cache keys on `adviceFingerprint`, which includes every destination — so changing the answer changes the matches, which is the brief's "a changed answer visibly changes the result". The **Edit profile** button reopens onboarding prefilled to make that reachable.
 
 ## Accounts
 

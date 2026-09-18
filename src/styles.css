@@ -15,3 +15,16 @@
 .exam-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:12px 0 1px 30px}.exam-fields label{display:grid;gap:5px}.exam-fields label>span{font-size:9px;color:#858ca1;font-weight:700;text-transform:uppercase;letter-spacing:.07em}.exam-fields input,.exam-fields select{width:100%;height:40px;border:1px solid #dfe2eb;border-radius:10px;background:#fff;padding:0 10px;color:var(--ink);outline:none}.exam-fields input:focus,.exam-fields select:focus{border-color:#8877df;box-shadow:0 0 0 3px #efecff}
 .exam-step>footer{position:sticky;bottom:-30px;margin:0 -30px -30px;padding:16px 30px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:18px}.exam-step>footer small{color:#858ca0}.exam-step button:disabled{opacity:.6;cursor:wait}.exam-error{color:#c64e5b;background:#fff0f2;border-radius:10px;padding:9px 11px;font-size:11px;margin-bottom:13px}
 @media(max-width:700px){.exam-step-backdrop{padding:0;place-items:stretch}.exam-step{max-height:100vh;border-radius:0;padding:21px 16px}.exam-step>header{padding-bottom:17px}.exam-step h1{font-size:29px}.exam-fields{grid-template-columns:1fr;margin-left:0}.exam-step>footer{bottom:-21px;margin:0 -16px -21px;padding:13px 16px;align-items:stretch;flex-direction:column}.exam-step>footer .button{width:100%}}
+
+/* Переключатель языка. На экране входа он плавает поверх, внутри приложения — обычный ряд. */
+.lang-switch{display:inline-flex;gap:3px;padding:3px;border-radius:12px;background:#efeefa;border:1px solid var(--line)}
+.lang-switch button{padding:6px 12px;border-radius:9px;background:none;border:0;font-size:12px;font-weight:700;color:#6c7186;cursor:pointer;transition:.15s;white-space:nowrap}
+.lang-switch button:hover{color:var(--purple-dark)}
+.lang-switch button.on{background:#fff;color:var(--purple);box-shadow:0 2px 6px rgba(48,40,109,.1)}
+.lang-switch.compact button{padding:5px 9px;font-size:11px}
+.auth-screen>.lang-switch{position:absolute;top:18px;right:20px;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(6px)}
+.auth-screen{position:relative}
+.onboarding>.lang-switch{align-self:flex-end}
+.footer-brand .lang-switch{margin-top:14px}
+.profile-actions .lang-switch{margin-right:4px}
+@media(max-width:700px){.auth-screen>.lang-switch{top:10px;right:10px}.lang-switch button{padding:5px 9px;font-size:11px}}

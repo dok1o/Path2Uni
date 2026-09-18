@@ -7,7 +7,7 @@
 // launders a demo figure into a confident statement is worse than no explanation.
 
 import { createHash } from 'node:crypto'
-import { callGemini } from './gemini.js'
+import { callGemini, languageRule } from './gemini.js'
 import { query } from './db.js'
 import { requirementsFor, englishGap, DEMO_NOTICE } from '../src/data/admissionDemo.js'
 import { universities, cityById, FIELD_LABELS } from '../src/data/worldUniversities.js'
@@ -87,8 +87,9 @@ const profileLines = (profile, tests) => {
  * Two Gemini calls and six seconds on every visit to My matches is not a load-time problem to
  * optimise away later — it is the page being unusable.
  */
-export function adviceFingerprint(profile, tests = []) {
+export function adviceFingerprint(profile, tests = [], lang = 'en') {
   const parts = [
+    lang,
     destinationsOf(profile).join(','), profile.degree, profile.field, profile.intake, profile.englishLevel,
     ...tests.map(test => `${test.test_code}:${test.status}:${test.score ?? test.score_text ?? ''}`).sort(),
   ]
@@ -114,7 +115,7 @@ export async function writeCachedAdvice(profile, fingerprint, { diagnosis, match
 }
 
 /** Stage 3: the profile read back, with strengths, gaps and the goal. */
-export async function diagnose({ apiKey, profile, tests }) {
+export async function diagnose({ apiKey, profile, tests, lang = 'en' }) {
   const countries = destinationsOf(profile)
   const labels = labelsOf(profile)
   // The primary destination decides the English read, because that is the one the roadmap is
@@ -162,7 +163,7 @@ export async function diagnose({ apiKey, profile, tests }) {
   try {
     const { text, model } = await callGemini({
       apiKey,
-      system: `${RULES}\n\nWrite a short diagnosis of this applicant's position.`,
+      system: `${RULES}\n\n${languageRule(lang)}\n\nWrite a short diagnosis of this applicant's position.`,
       contents: [{ role: 'user', parts: [{ text: facts.join('\n') }] }],
       generationConfig: { responseMimeType: 'application/json', responseSchema: DIAGNOSIS_SCHEMA, temperature: 0.5 },
       signal: AbortSignal.timeout(25_000),
@@ -184,7 +185,7 @@ export async function diagnose({ apiKey, profile, tests }) {
 }
 
 /** Stage 4: why each shortlisted university suits this person. */
-export async function explainMatches({ apiKey, profile, tests, shortlist }) {
+export async function explainMatches({ apiKey, profile, tests, shortlist, lang = 'en' }) {
   const picked = shortlist.slice(0, 6)
   if (!picked.length) return []
 
@@ -236,7 +237,7 @@ export async function explainMatches({ apiKey, profile, tests, shortlist }) {
   try {
     const { text, model } = await callGemini({
       apiKey,
-      system: `${RULES}\n\nExplain why each university suits this applicant. Use only the facts given.`,
+      system: `${RULES}\n\n${languageRule(lang)}\n\nExplain why each university suits this applicant. Use only the facts given.`,
       contents: [{ role: 'user', parts: [{ text: facts.join('\n') }] }],
       generationConfig: { responseMimeType: 'application/json', responseSchema: MATCH_SCHEMA, temperature: 0.55 },
       signal: AbortSignal.timeout(30_000),

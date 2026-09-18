@@ -49,8 +49,15 @@ const reply = (status, body, headers = {}) => ({ status, body, headers })
  * @param {{method:string, path:string, body:string, cookie:string, userAgent:string, apiKey:string|null}} request
  * @returns {Promise<{status:number, body:object, headers?:object}>}
  */
+const LANGS = new Set(['ru', 'kk', 'en'])
+/** The interface language, from the query string or the body. Anything unknown means English. */
+const readLang = (query, parsed) => {
+  const asked = query?.get?.('lang') ?? parsed?.lang
+  return LANGS.has(asked) ? asked : 'en'
+}
+
 export async function route(request) {
-  const { method, path, body, cookie, userAgent, apiKey, secure = false } = request
+  const { method, path, query, body, cookie, userAgent, apiKey, secure = false } = request
 
   // Local, not module-level: rebinding a shared helper would leak this request's `secure`
   // into every later one and stack a new wrapper on each call.
@@ -112,7 +119,7 @@ export async function route(request) {
       const objective = typeof parsed.objective === 'string' ? parsed.objective.slice(0, 500) : ''
       if (!objective.trim()) return json(400, { error: 'objective is required' })
 
-      const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
+      const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey, lang: readLang(query, parsed) })
       await savePlan(me.id, { plan, objective })
       // Read it back rather than returning what we just built: the stored rows carry the task
       // ids the per-quest progress API addresses, so a freshly generated plan is completable
@@ -141,13 +148,14 @@ export async function route(request) {
         limit: countries.length > 1 ? 6 : 5,
       })
       // Regenerated only when the answers it was built from change.
-      const fingerprint = adviceFingerprint(profile, tests)
+      const lang = readLang(query, parsed)
+      const fingerprint = adviceFingerprint(profile, tests, lang)
       const cached = await readCachedAdvice(profile, fingerprint)
       if (cached) return json(200, cached)
 
       const [diagnosis, matches] = await Promise.all([
-        diagnose({ apiKey, profile, tests }),
-        explainMatches({ apiKey, profile, tests, shortlist }),
+        diagnose({ apiKey, profile, tests, lang }),
+        explainMatches({ apiKey, profile, tests, shortlist, lang }),
       ])
       // A rules-only answer means the model was unreachable; caching it would freeze the
       // fallback in place until the profile changes.
@@ -190,7 +198,7 @@ export async function route(request) {
       if (!profile) return json(409, { error: 'Complete your profile first' })
       const stored = await getCurrentPlan(me.id)
       const result = await askLeo({
-        apiKey, profile, plan: stored,
+        apiKey, profile, plan: stored, lang: readLang(query, parsed),
         history: parsed.history, message: parsed.message,
       })
       if (result.error) return json(result.status, { error: result.error })

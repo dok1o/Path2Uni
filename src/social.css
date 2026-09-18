@@ -322,3 +322,18 @@
   .site-footer .footer-grid{grid-template-columns:1fr;gap:22px;padding:26px 0 20px}
   .footer-bottom{flex-direction:column;align-items:flex-start;gap:5px}
 }
+.city-life-body{display:grid;gap:22px;padding:20px 22px;overflow-y:auto}
+.city-life-body h3{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#7b8199;margin-bottom:11px}
+.city-life-uni-list{display:grid;gap:8px}
+.city-life-uni-list>article{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 14px;border:1px solid #e8e8f0;border-radius:14px;background:#fff}
+.city-life-uni-list h4{font-size:13px}
+.city-life-uni-list p{margin-top:2px;font-size:10px;color:#8a91a3}
+.city-life-uni-list a{font-size:10px;font-weight:700;color:var(--purple);text-decoration:none;white-space:nowrap}
+.city-life-uni-list a:hover{text-decoration:underline}
+.city-life-uni-list .no-link{font-size:10px;color:#a4a9b8;white-space:nowrap}
+.city-life-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.city-life-grid>article{display:flex;gap:11px;padding:14px;border-radius:14px;background:#f7f6fd}
+.city-life-grid i{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:10px;background:#ece9ff;color:var(--purple);font-style:normal;font-size:15px}
+.city-life-grid h4{font-size:12px}
+.city-life-grid p{margin-top:4px;font-size:10px;line-height:1.5;color:#6d7386}
+@media(max-width:700px){.city-life-grid{grid-template-columns:1fr}.city-life-uni-list>article{grid-template-columns:30px minmax(0,1fr);gap:9px}.city-life-uni-list a,.city-life-uni-list .no-link{grid-column:2}}

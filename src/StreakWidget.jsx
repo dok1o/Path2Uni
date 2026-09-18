@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'motion/react'
+import { useT } from './i18n.jsx'
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+// 1 January 2024 was a Monday, so this walks a real week and lets the locale name the days:
+// M T W T F S S in English, П В С Ч П С В in Russian. No dictionary entry can get this wrong.
+const dayLabels = locale => Array.from({ length: 7 }, (_, index) =>
+  new Date(2024, 0, index + 1).toLocaleDateString(locale, { weekday: 'narrow' }))
 const dateFromKey = key => {
   if (!key) return null
   const [year, month, day] = key.split('-').map(Number)
   return new Date(year, month - 1, day)
 }
 const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-const formatDate = key => dateFromKey(key)?.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }) ?? 'Not started yet'
+const formatDate = (key, locale, t) => dateFromKey(key)?.toLocaleDateString(locale, { day:'numeric', month:'long', year:'numeric' }) ?? t('Not started yet')
 
 export function FlameIcon({ className = '' }) {
   return <svg className={className} viewBox="0 0 32 38" aria-hidden="true">
@@ -26,21 +30,22 @@ const sparks = Array.from({ length:24 }, (_, index) => ({
 }))
 
 export function StreakCelebration({ streak, awardedXp, onClose }) {
+  const { t } = useT()
   useEffect(() => {
     const timer = window.setTimeout(onClose, 3600)
     return () => window.clearTimeout(timer)
   }, [onClose])
 
-  return <motion.div className="streak-celebration" role="dialog" aria-modal="true" aria-label={`${streak} day streak extended`} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:.22}} onClick={onClose}>
+  return <motion.div className="streak-celebration" role="dialog" aria-modal="true" aria-label={t('{count} day streak extended', { count: streak })} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:.22}} onClick={onClose}>
     <motion.div className="celebration-glow" initial={{scale:.15,opacity:0}} animate={{scale:[.15,1.05,1],opacity:[0,1,.82]}} transition={{duration:.75,ease:[.16,1,.3,1]}}/>
     <div className="celebration-sparks" aria-hidden="true">{sparks.map((spark, index) => <motion.i key={spark.id} style={{background:spark.color}} initial={{x:0,y:0,scale:0,rotate:0,opacity:0}} animate={{x:spark.x,y:spark.y,scale:[0,1.25,.7],rotate:spark.rotate,opacity:[0,1,0]}} transition={{duration:1.35,delay:.24 + index * .012,ease:'easeOut'}}/>)}</div>
     <motion.section className="celebration-card" onClick={event => event.stopPropagation()} initial={{y:70,scale:.72,opacity:0}} animate={{y:0,scale:1,opacity:1}} exit={{y:-30,scale:.9,opacity:0}} transition={{type:'spring',stiffness:230,damping:18,delay:.08}}>
       <motion.div className="celebration-fire" initial={{scale:.2,rotate:-18}} animate={{scale:[.2,1.22,.94,1],rotate:[-18,8,-3,0]}} transition={{duration:.9,ease:[.16,1,.3,1]}}><span/><FlameIcon/></motion.div>
-      <motion.span className="celebration-kicker" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.52}}>STREAK EXTENDED</motion.span>
-      <motion.h2 initial={{opacity:0,scale:.8}} animate={{opacity:1,scale:1}} transition={{delay:.58,type:'spring'}}><b>{streak}</b> {streak === 1 ? 'day' : 'days'}</motion.h2>
-      <motion.p initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:.7}}>You showed up and moved your path forward.</motion.p>
+      <motion.span className="celebration-kicker" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.52}}>{t('STREAK EXTENDED')}</motion.span>
+      <motion.h2 initial={{opacity:0,scale:.8}} animate={{opacity:1,scale:1}} transition={{delay:.58,type:'spring'}}><b>{streak}</b> {t(streak === 1 ? 'day' : 'days')}</motion.h2>
+      <motion.p initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} transition={{delay:.7}}>{t('You showed up and moved your path forward.')}</motion.p>
       <motion.div className="celebration-xp" initial={{opacity:0,scale:.6,y:15}} animate={{opacity:1,scale:1,y:0}} transition={{delay:.82,type:'spring',stiffness:280}}><span>✦</span> +{awardedXp} XP</motion.div>
-      <motion.button onClick={onClose} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:1}}>Keep going</motion.button>
+      <motion.button onClick={onClose} initial={{opacity:0}} animate={{opacity:1}} transition={{delay:1}}>{t('Keep going')}</motion.button>
     </motion.section>
   </motion.div>
 }
@@ -48,6 +53,7 @@ export function StreakCelebration({ streak, awardedXp, onClose }) {
 const emptyStreak = { current:0, longest:0, activeToday:false, startedAt:null, currentStartedAt:null, history:[] }
 
 export default function StreakWidget({ streak = emptyStreak, today }) {
+  const { t, locale } = useT()
   const [open, setOpen] = useState(false)
   const todayDate = dateFromKey(today) ?? new Date()
   const [month, setMonth] = useState(() => new Date(todayDate.getFullYear(), todayDate.getMonth(), 1))
@@ -68,21 +74,21 @@ export default function StreakWidget({ streak = emptyStreak, today }) {
   const leading = (new Date(year, monthIndex, 1).getDay() + 6) % 7
   const count = new Date(year, monthIndex + 1, 0).getDate()
   const days = [...Array(leading).fill(null), ...Array.from({ length:count }, (_, index) => index + 1)]
-  const monthTitle = month.toLocaleDateString('en-GB', { month:'long', year:'numeric' })
+  const monthTitle = month.toLocaleDateString(locale, { month:'long', year:'numeric' })
 
   return <div className="streak-widget" ref={rootRef}>
-    <button className={`streak-pill ${streak.activeToday ? 'lit' : ''}`} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-haspopup="dialog" aria-label={`${streak.current} day streak. ${streak.activeToday ? 'Completed today' : 'Complete a My Path task to light it today'}`}>
+    <button className={`streak-pill ${streak.activeToday ? 'lit' : ''}`} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-haspopup="dialog" aria-label={`${t('{count} day streak', { count: streak.current })}. ${t(streak.activeToday ? 'Completed today' : 'Complete a My Path task to light it today')}`}>
       <FlameIcon/>
-      <span><b>{streak.current}</b><small>{streak.current === 1 ? 'day' : 'days'}</small></span>
+      <span><b>{streak.current}</b><small>{t(streak.current === 1 ? 'day' : 'days')}</small></span>
     </button>
-    {open && <section className="streak-popover" role="dialog" aria-label="Streak calendar">
+    {open && <section className="streak-popover" role="dialog" aria-label={t('Streak calendar')}>
       <div className={`streak-summary ${streak.activeToday ? 'lit' : ''}`}>
         <FlameIcon/>
-        <div><b>{streak.activeToday ? 'Your fire is lit!' : 'Your fire is waiting'}</b><span>{streak.activeToday ? 'You completed a My Path task today.' : 'Complete one My Path task today to light it.'}</span></div>
+        <div><b>{t(streak.activeToday ? 'Your fire is lit!' : 'Your fire is waiting')}</b><span>{t(streak.activeToday ? 'You completed a My Path task today.' : 'Complete one My Path task today to light it.')}</span></div>
       </div>
-      <div className="calendar-head"><button onClick={() => setMonth(new Date(year, monthIndex - 1, 1))} aria-label="Previous month">‹</button><strong>{monthTitle}</strong><button onClick={() => setMonth(new Date(year, monthIndex + 1, 1))} aria-label="Next month">›</button></div>
+      <div className="calendar-head"><button onClick={() => setMonth(new Date(year, monthIndex - 1, 1))} aria-label={t('Previous month')}>‹</button><strong>{monthTitle}</strong><button onClick={() => setMonth(new Date(year, monthIndex + 1, 1))} aria-label={t('Next month')}>›</button></div>
       <div className="streak-calendar">
-        {DAY_LABELS.map((label, index) => <small key={`${label}-${index}`}>{label}</small>)}
+        {dayLabels(locale).map((label, index) => <small key={`${label}-${index}`}>{label}</small>)}
         {days.map((day, index) => {
           if (!day) return <i key={`empty-${index}`}/>
           const key = dateKey(new Date(year, monthIndex, day))
@@ -91,7 +97,7 @@ export default function StreakWidget({ streak = emptyStreak, today }) {
           return <span className={`${completed ? 'completed' : ''} ${isToday ? 'today' : ''}`} key={key}>{completed ? <FlameIcon/> : day}<em>{day}</em></span>
         })}
       </div>
-      <div className="streak-details"><span><small>STREAK STARTED</small><b>{formatDate(streak.startedAt)}</b></span><span><small>LONGEST STREAK</small><b>{streak.longest} {streak.longest === 1 ? 'day' : 'days'}</b></span></div>
+      <div className="streak-details"><span><small>{t('STREAK STARTED')}</small><b>{formatDate(streak.startedAt, locale, t)}</b></span><span><small>{t('LONGEST STREAK')}</small><b>{streak.longest} {t(streak.longest === 1 ? 'day' : 'days')}</b></span></div>
     </section>}
   </div>
 }

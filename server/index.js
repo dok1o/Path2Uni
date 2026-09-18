@@ -40,7 +40,7 @@ createServer((request, response) => {
     response.writeHead(status, { 'Content-Type': 'application/json', ...headers })
     response.end(JSON.stringify(body))
   }
-  const path = new URL(request.url, 'http://localhost').pathname
+  const { pathname: path, searchParams: query } = new URL(request.url, 'http://localhost')
 
   if (!path.startsWith('/api/')) {
     if (request.method !== 'GET') return send({ status: 405, body: { error: 'Method not allowed' } })
@@ -57,7 +57,7 @@ createServer((request, response) => {
   request.on('data', chunk => { body += chunk; if (body.length > 64_000) request.destroy() })
   request.on('end', () => {
     route({
-      method: request.method, path, body,
+      method: request.method, path, query, body,
       cookie: request.headers.cookie, userAgent: request.headers['user-agent'], apiKey,
       // Behind a terminating proxy the socket is plain http, so the header is the only
       // signal. Trust it only when TRUST_PROXY is set — otherwise any client could claim

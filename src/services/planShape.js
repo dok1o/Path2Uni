@@ -2,11 +2,13 @@
 // asked for pixel coordinates returns overlapping nonsense, and the graph is a UI concern.
 // The model supplies ordered tasks; everything below turns them into the rendered plan.
 
+import { translate } from '../locales/index.js'
+
 export const TASK_TYPES = ['research', 'documents', 'application']
 const XP_BY_TYPE = { research: 120, documents: 180, application: 300 }
 
 /** Drops anything the model invented outside the three types the UI can render. */
-export function normalizeTasks(rawTasks, { destination }) {
+export function normalizeTasks(rawTasks, { destination }, lang = 'en') {
   const clean = (Array.isArray(rawTasks) ? rawTasks : [])
     .filter(task => task && TASK_TYPES.includes(task.type) && task.title)
     .slice(0, 6)
@@ -28,11 +30,13 @@ export function normalizeTasks(rawTasks, { destination }) {
     position: index,
     state: index === 0 ? 'current' : 'locked',
     xp: XP_BY_TYPE[task.type],
+    // Written in the plan's language at generation time: the label is stored, so it cannot
+    // be translated later without regenerating the plan.
     due: index === 0
-      ? 'Today · 12 min'
+      ? translate(lang, 'Today · 12 min')
       : index === clean.length - 1
-        ? `Rounds open in ${destination.earliest}`
-        : `Unlocks after ${clean[index - 1].shortTitle}`,
+        ? translate(lang, 'Rounds open in {month}', { month: translate(lang, destination.earliest) })
+        : translate(lang, 'Unlocks after {task}', { task: clean[index - 1].shortTitle }),
   }))
 }
 

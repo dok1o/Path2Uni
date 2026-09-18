@@ -1,0 +1,17 @@
+{
+  "_readme": "Per-city overrides for the City life panel. Keys are city ids (lowercase, dashes). Each entry: { tags: [..], items: [{ icon, title, text }] }. Everything here is demonstration data and is shown with a demo badge. Do not name a venue or a date you have not checked — a closed club sends a student to a locked door.",
+  "_example": {
+    "tags": [
+      "Design",
+      "Fashion",
+      "Engineering"
+    ],
+    "items": [
+      {
+        "icon": "♣",
+        "title": "Student clubs",
+        "text": "Replace this with something you have actually checked, and add where you checked it."
+      }
+    ]
+  }
+}

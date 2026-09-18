@@ -33,7 +33,7 @@ async function record(entry) {
   catch { /* logging must never fail a request */ }
 }
 
-export async function createAdmissionPlan({ profile, objective, apiKey }) {
+export async function createAdmissionPlan({ profile, objective, apiKey, lang = 'en' }) {
   const started = Date.now()
   const safeProfile = deidentify(profile)
   const context = readObjective(objective, safeProfile)
@@ -58,8 +58,8 @@ export async function createAdmissionPlan({ profile, objective, apiKey }) {
 
   const abort = AbortSignal.timeout(TIMEOUT_MS)
   try {
-    const { plan, model, usage } = await generateWithGemini({ apiKey, context, shortlist, signal: abort })
-    const tasks = normalizeTasks(plan.tasks, context)
+    const { plan, model, usage } = await generateWithGemini({ apiKey, context, shortlist, signal: abort, lang })
+    const tasks = normalizeTasks(plan.tasks, context, lang)
     if (!tasks.length) throw Object.assign(new Error('model returned no usable task'), { attempts: [{ model, status: 200, detail: 'schema ok, tasks unusable' }] })
 
     await record({ status: 'ok', model, ...usage, taskCount: tasks.length, shortlist: shortlist.length, latencyMs: Date.now() - started })

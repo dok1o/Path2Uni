@@ -103,6 +103,17 @@ A stage (`roadmap_tasks`) holds three to five quests (`subtasks`). Progress is p
 - **The streak celebration fires only when the server says the streak grew** (`event.streakExtended`), never when the client guesses.
 - `ensureActivitySchema()` re-applies the migration's DDL idempotently at runtime, because init scripts only run against a fresh volume. `npm run doctor` is the real answer to that; the guard stays so a teammate's stale database does not 500.
 
+## Three languages
+
+Russian, Kazakh and English, switchable anywhere, remembered per browser in `path2uni:lang`.
+
+- **The dictionary key IS the English string** ([src/locales/](src/locales/)). English therefore needs no table, and a string missing from `ru` or `kk` renders in English rather than blank. The cost: editing an English string silently drops its translation, so change the source and both entries together. `npm test` does not catch that — nothing can, by construction.
+- **`src/locales/index.js` holds no React**, because the server imports the same `translate()`: a plan's deadline labels are generated and stored server-side, and a Russian plan with English deadlines is a half-translated plan.
+- **Server error messages are English sentences, which are already dictionary keys**, so `t(payload.error, payload.vars)` on the client translates them with no error-code protocol. A message with a number carries `{placeholder}` plus `vars` rather than being interpolated on the server.
+- **The model is told which language to answer in** (`languageRule()` in [server/gemini.js](server/gemini.js)), for the plan, the diagnosis, the match explanations and Leo. University, exam and portal names stay as given — a translated name cannot be searched for.
+- **`adviceFingerprint` includes the language**, so switching regenerates the diagnosis instead of serving the previous language back. A *plan* is stored in the language it was generated in and changes only when regenerated.
+- **What is deliberately not translated:** city names (a student searching for "Milan" needs the Latin form), university names, and the rule-based fallback text that only appears when Gemini is unreachable.
+
 ## Accounts
 
 Username and password, no email. [database/core/003_auth.sql](database/core/003_auth.sql) added what `001_schema.sql` left out — the original `users` table had an email and a display name but no credentials at all.

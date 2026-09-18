@@ -42,6 +42,17 @@ the API from one origin on `:8787`, which is what the session cookie needs.
 
 ---
 
+## Languages
+
+Russian, Kazakh and English. The switcher sits on the sign-in screen, in onboarding, in the
+profile header and in the footer; the choice is remembered per browser.
+
+The dictionary key is the English string (`src/locales/`), so English needs no table and an
+untranslated string falls back to English instead of rendering blank. The model is told which
+language to answer in, so the diagnosis, the match explanations, the plan and Leo all arrive
+in the interface language. City and university names stay in their Latin form on purpose —
+that is what a student has to type into a search box.
+
 ## The path a user walks
 
 | Stage | Where it lives |

@@ -21,6 +21,7 @@ cp .env.example .env         # then fill in GEMINI_API_KEY and the database pass
 npm run keygen >> .env       # field-encryption keys
 docker compose up -d core-db # Postgres; see the port note below
 npm run doctor               # says what is still missing, and what to do about it
+npm run migrate              # applies database/core/*.sql in order, once each
 npm run dev                  # app and API together on http://localhost:5173
 ```
 
@@ -41,6 +42,37 @@ For a production-shaped run, `npm run build && npm run server` serves the built 
 the API from one origin on `:8787`, which is what the session cookie needs.
 
 ---
+
+## Deploying it (Render + Supabase)
+
+`render.yaml` is the blueprint — create the service from it rather than clicking through the
+dashboard, so the deployment is something the next person can read.
+
+1. **Supabase**: create a project. Project Settings → Database → Connection string →
+   **Session pooler**. Copy that one.
+   - Not the direct connection: Supabase serves it over IPv6 only, and Render's free
+     instances have no IPv6. The app would never connect, and the symptom is a timeout
+     rather than an error that says why.
+   - Not the transaction pooler on port 6543: it does not keep prepared statements, and
+     every parameterised query here is one. `npm run doctor` warns about both.
+2. **Render**: New → Blueprint → point it at this repository. It reads `render.yaml`.
+3. Fill in the secrets it asks for: `DATABASE_URL` (the string from step 1),
+   `GEMINI_API_KEY`, `P2U_KEYS` and `P2U_INDEX_KEY` (`npm run keygen` prints the last two),
+   and the `SMTP_*` values if you want sign-in codes and reminders.
+4. Deploy. `npm start` runs the migrations and then the server; Supabase starts empty and has
+   no equivalent of Docker's init directory.
+
+Things worth knowing before the demo:
+
+- **`TRUST_PROXY=1` is already in the blueprint and matters.** Render terminates TLS and
+  talks plain HTTP to the container, so from inside the request looks insecure. Without this
+  the session cookie never gets `Secure` and HSTS is never sent.
+- **A free Render instance sleeps after 15 minutes idle**, and the next request waits about
+  fifty seconds for it to wake. Open the site a minute before anyone else does.
+- **Outbound SMTP may be blocked on the free plan.** If codes stop arriving after deploy,
+  that is the first thing to check — the app itself degrades cleanly and says so.
+- An existing database that was set up by hand takes `npm run migrate -- --baseline` once, to
+  record the files as applied without re-running them.
 
 ## Languages
 

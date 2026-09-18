@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "node server/index.js",
     "preview": "vite preview",
     "server": "node server/index.js",
     "db:migrate": "node scripts/migrate.js",
@@ -15,7 +14,9 @@
     "keygen": "node scripts/keygen.js",
     "catalog:fetch": "node scripts/fetch-wikidata.js",
     "catalog:maps": "node scripts/build-country-maps.mjs",
-    "doctor": "node scripts/doctor.js"
+    "doctor": "node scripts/doctor.js",
+    "migrate": "node scripts/migrate.js",
+    "start": "node scripts/migrate.js && node server/index.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

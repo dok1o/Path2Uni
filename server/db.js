@@ -10,24 +10,34 @@ pg.types.setTypeParser(1082, value => value)
 
 const settings = process.env
 
-// Hosted Postgres providers expose one standard connection string. Keep the individual
-// settings for local Docker development, where they are easier to read and override.
-const connection = settings.DATABASE_URL
-  ? { connectionString: settings.DATABASE_URL }
+// A hosted database hands out one URL instead of five variables, and its certificate is
+// signed by a root the platform does not put in the container's trust store. Rejecting it
+// would mean no connection at all; accepting it still encrypts the link, which is the part
+// that matters over a shared network. Local development keeps the discrete variables.
+const hosted = settings.DATABASE_URL
+  ? {
+    connectionString: settings.DATABASE_URL,
+    ssl: settings.DATABASE_SSL === 'off' ? false : { rejectUnauthorized: false },
+  }
   : {
-      host: settings.CORE_DB_HOST || 'localhost',
-      port: Number(settings.CORE_DB_PORT || 5432),
-      user: settings.CORE_DB_USER || 'path2uni',
-      password: settings.CORE_DB_PASSWORD || '',
-      database: settings.CORE_DB_NAME || 'path2uni_core',
-    }
+    host: settings.CORE_DB_HOST || 'localhost',
+    port: Number(settings.CORE_DB_PORT || 5432),
+    user: settings.CORE_DB_USER || 'path2uni',
+    password: settings.CORE_DB_PASSWORD || '',
+    database: settings.CORE_DB_NAME || 'path2uni_core',
+  }
 
 export const pool = new pg.Pool({
-  ...connection,
+  ...hosted,
   max: 8,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 4_000,
 })
+
+/** What the doctor and the migration runner print, without ever printing a password. */
+export const describeConnection = () => settings.DATABASE_URL
+  ? `DATABASE_URL → ${String(settings.DATABASE_URL).replace(/\/\/[^@]*@/, '//***@')}`
+  : `${settings.CORE_DB_USER || 'path2uni'}@${settings.CORE_DB_HOST || 'localhost'}:${settings.CORE_DB_PORT || 5432}/${settings.CORE_DB_NAME || 'path2uni_core'}`
 
 // An unreachable database must not take the process down; routes report it instead.
 pool.on('error', error => console.error('[path2uni] idle postgres client error:', error.message))

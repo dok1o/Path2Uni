@@ -16,12 +16,20 @@ Needs **Node 20.19+ or 22.12+** (an older Node fails at startup on `styleText`),
 the database, and a Gemini API key.
 
 ```bash
+npm install
 cp .env.example .env         # then fill in GEMINI_API_KEY and the database password
 npm run keygen >> .env       # field-encryption keys
-npm install
 docker compose up -d core-db # Postgres; see the port note below
+npm run doctor               # says what is still missing, and what to do about it
 npm run dev                  # app and API together on http://localhost:5173
 ```
+
+**If the AI feels generic, run `npm run doctor` first.** `.env` is gitignored, so a fresh
+clone has no Gemini key, and the app degrades instead of erroring: plans come from the
+rule-based planner, Leo answers only from the plan, the diagnosis is a template. Nothing
+breaks, it just gets duller — which reads as "the agent doesn't work". Get your own free key
+at [aistudio.google.com/apikey](https://aistudio.google.com/apikey); don't share one across
+the team, or you share its rate limit too.
 
 `CORE_DB_PORT` defaults to **5442**, not 5432 — a local Postgres install usually holds 5432
 and the container then fails to bind.

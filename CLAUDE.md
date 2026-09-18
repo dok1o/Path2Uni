@@ -13,6 +13,7 @@ npm run server       # serves dist/ AND the API on :8787 — one origin, which i
 npm test             # 94 tests, no network (auth tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
+npm run doctor       # why the AI is quiet: missing key, missing .env, database down
 
 docker compose up -d core-db   # required for sign-in; see the port note below
 node --test tests/data.test.js   # a single file

@@ -6,6 +6,7 @@ import mascot from './assets/leo-mascot.png'
 import Auth from './Auth.jsx'
 import Onboarding from './Onboarding.jsx'
 import Advisor, { Comparison } from './Advisor.jsx'
+import cityFallback from './assets/cities/city-fallback.png'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
 import { loadApplicantProfile, saveApplicantTests } from './services/applicantProfile.js'
 const icons = {
@@ -180,6 +181,27 @@ function CountryFlag({ country }) {
   return <i className={`flag flag-${country.id}`} aria-hidden="true" />
 }
 
+const cityImageCache = new Map()
+function CityBackdrop({ city }) {
+  const [image,setImage]=useState(()=>cityImageCache.get(city)?.image||cityFallback)
+  const [source,setSource]=useState(()=>cityImageCache.get(city)?.source||'')
+  useEffect(()=>{
+    let active=true
+    const cached=cityImageCache.get(city)
+    if(cached){setImage(cached.image);setSource(cached.source);return()=>{active=false}}
+    setImage(cityFallback);setSource('')
+    const params=new URLSearchParams({action:'query',format:'json',origin:'*',prop:'pageimages|info',inprop:'url',piprop:'thumbnail',pithumbsize:'1600',titles:city})
+    fetch(`https://en.wikipedia.org/w/api.php?${params}`).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
+      const page=Object.values(data.query?.pages||{})[0]
+      if(!active||!page?.thumbnail?.source)return
+      const result={image:page.thumbnail.source,source:page.fullurl||''}
+      cityImageCache.set(city,result);setImage(result.image);setSource(result.source)
+    }).catch(()=>{})
+    return()=>{active=false}
+  },[city])
+  return <div className="city-photo-backdrop" style={{backgroundImage:`url("${image}")`}}>{source&&<a href={source} target="_blank" rel="noreferrer">Photo: Wikimedia</a>}</div>
+}
+
 function CountryFlagPattern({ country }) {
   const id = `country-flag-${country.id}`
   const patternProps = { id, width: '1', height: '1', patternUnits: 'objectBoundingBox', patternContentUnits: 'objectBoundingBox' }
@@ -261,7 +283,7 @@ function UniversityExplorer({ favorites, onToggleFavorite, friends }) {
     <section className="country-head"><div><span className="eyebrow purple">EXPLORE YOUR DESTINATION</span><h1>{city ? `${city.name}, ${country.name}` : `${country.name} map`}</h1><p>{city ? city.note : 'Explore accurate country contours, map out university cities and build a shortlist.'}</p></div><div className="country-picker" aria-label="Choose a country">{countryCatalog.map(item => <button key={item.id} className={item.id === country.id ? 'active' : ''} onClick={() => switchCountry(item.id)}><CountryFlag country={item}/>{item.shortName}</button>)}</div></section>
     <section className={`country-explorer country-explorer-3d ${city ? 'city-open' : ''}`}>
       <div className="country-stage country-stage-3d"><CountryMap3D country={country} city={city} onSelectCity={setCity}/>
-        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-sky"><span className="building b1"/><span className="building b2"/><span className="building b3"/><span className="building dome"/></div><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university, index) => { const saved = Boolean(savedItem(university)); const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved ? 'is-saved' : ''}`} whileHover={{ y: -4 }}><span className="uni-pin">{index + 1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.focus}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length ? `${people.slice(0,2).map(friend => friend.name).join(' & ')}${people.length > 2 ? ` +${people.length - 2}` : ''} chose this university` : saved ? 'Saved to your shortlist' : 'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{ scale: .78, rotate: -15 }} className={`favorite-star ${saved ? 'saved' : ''}`} onClick={() => toggleUniversity(university)} aria-label={saved ? `Remove ${university.name} from saved` : `Save ${university.name}`}>{saved ? '★' : '☆'}</motion.button></motion.article> })}</div></motion.div>}</AnimatePresence>
+        <AnimatePresence mode="wait">{city && <motion.div key={`${country.id}-${city.name}`} className="city-scene visible social-city-scene" initial={{ opacity: 0, scale: .92, x: 45 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: .96, x: -30 }} transition={{ type: 'spring', stiffness: 170, damping: 22 }}><CityBackdrop city={city.name}/><button className="city-back" onClick={() => setCity(null)}>← Back to {country.name}</button><div className="city-title"><span className="eyebrow">WELCOME TO</span><h2>{city.name}</h2><p>{city.note}</p></div><div className="city-universities">{city.universities.map((university, index) => { const saved = Boolean(savedItem(university)); const people = friends.filter(friend => friend.university === university.name); return <motion.article layout key={university.id} className={`city-uni-card social-uni-card ${saved ? 'is-saved' : ''}`} whileHover={{ y: -4 }}><span className="uni-pin">{index + 1}</span><span className="uni-card-main"><strong>{university.name}</strong><small>{university.match ? `${university.match} · English programmes` : university.focus}</small><span className="uni-social-proof"><span className="friend-stack">{people.slice(0,3).map(friend => <i key={friend.id} title={`${friend.name} ${friend.nickname}`} className={`friend-dot ${friend.className}`}>{friend.initials}</i>)}</span><em>{people.length ? `${people.slice(0,2).map(friend => friend.name).join(' & ')}${people.length > 2 ? ` +${people.length - 2}` : ''} chose this university` : saved ? 'Saved to your shortlist' : 'Explore programmes and admissions'}</em></span></span><motion.button whileTap={{ scale: .78, rotate: -15 }} className={`favorite-star ${saved ? 'saved' : ''}`} onClick={() => toggleUniversity(university)} aria-label={saved ? `Remove ${university.name} from saved` : `Save ${university.name}`}>{saved ? '★' : '☆'}</motion.button></motion.article> })}</div></motion.div>}</AnimatePresence>
       </div>
       <aside className="country-sidebar"><span className="country-badge"><CountryFlag country={country}/>DESTINATION MAP</span><h2>{city?.name || country.name}</h2><p>{city ? `Compare universities in ${city.name} and save the ones you want to revisit.` : 'Pick a glowing city point, or drag the country contour to see it from another angle.'}</p><div className="country-facts">{city ? <><div><b>{city.universities.length}</b><small>universities shown</small></div><div><b>{countryFavorites.length}</b><small>saved here</small></div></> : <><div><b>{country.cities.length}</b><small>cities mapped</small></div><div><b>{totalUniversities}</b><small>universities to explore</small></div></>}</div>{!city && <div className="map-legend"><span><i className="legend-pulse"/>Tap a glowing point</span><small>Every outline uses its national flag colours and can rotate in 3D.</small></div>}<button className="button primary" onClick={() => setCity(city || country.cities[0])}>{city ? 'Review city shortlist' : `Explore ${country.cities[0].name}`} <span>{icons.arrow}</span></button></aside>
     </section>
@@ -292,15 +314,15 @@ function Friends({ friends, onAddFriend }) {
 }
 
 const examCatalog = [
-  { code:'SAT', name:'SAT', range:'400–1600' },
-  { code:'IELTS', name:'IELTS Academic', range:'0–9' },
-  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140' },
-  { code:'DET', name:'Duolingo English Test', range:'10–160' },
-  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120' },
-  { code:'ACT', name:'ACT', range:'1–36' },
+  { code:'SAT', name:'SAT', range:'400–1600', min:400, max:1600, step:10 },
+  { code:'IELTS', name:'IELTS Academic', range:'0–9', min:0, max:9, step:0.5 },
+  { code:'UNT', name:'ЕНТ / ҰБТ', range:'0–140', min:0, max:140, step:1 },
+  { code:'DET', name:'Duolingo English Test', range:'10–160', min:10, max:160, step:5 },
+  { code:'TOEFL_IBT', name:'TOEFL iBT', range:'0–120', min:0, max:120, step:1 },
+  { code:'ACT', name:'ACT', range:'1–36', min:1, max:36, step:1 },
   { code:'CAMBRIDGE', name:'Cambridge English', range:'Score' },
-  { code:'IB', name:'IB Diploma', range:'0–45' },
-  { code:'AP', name:'AP Exams', range:'1–5' },
+  { code:'IB', name:'IB Diploma', range:'0–45', min:0, max:45, step:1 },
+  { code:'AP', name:'AP Exams', range:'1–5', min:1, max:5, step:1 },
   { code:'A_LEVEL', name:'A-level', range:'Grade' },
   { code:'OTHER', name:'Other exam', range:'Result' },
 ]
@@ -315,6 +337,18 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
   const update = (code, changes) => setTests(current => current.map(test => test.code === code ? { ...test, ...changes } : test))
   const submit = async event => {
     event.preventDefault()
+    const testWithoutDate = tests.find(test => test.selected && !test.date)
+    if (testWithoutDate) {
+      setError(`${testWithoutDate.name}: select a test date before saving.`)
+      return
+    }
+    const invalidTest = tests.find(test => test.selected && test.min != null && test.score !== '' && (
+      Number(test.score) < test.min || Number(test.score) > test.max || Math.abs((Number(test.score) - test.min) / test.step - Math.round((Number(test.score) - test.min) / test.step)) > 1e-9
+    ))
+    if (invalidTest) {
+      setError(`${invalidTest.name}: enter a score from ${invalidTest.min} to ${invalidTest.max} in increments of ${invalidTest.step}.`)
+      return
+    }
     setSaving(true); setError('')
     try {
       await onSave(tests.filter(test => test.selected))
@@ -328,7 +362,7 @@ function ExamResultsStep({ initialTests, onSave, onClose }) {
     <header><div><span className="eyebrow purple">PROFILE · TEST RESULTS</span><h1 id="exam-step-title">Which exams have you taken?</h1><p>Add completed tests or exams you are planning. You can update them later.</p></div><button type="button" className="exam-close" onClick={onClose} aria-label="Close">×</button></header>
     <div className="exam-list">{tests.map(test => <article key={test.code} className={test.selected ? 'selected' : ''}>
       <label className="exam-select"><input type="checkbox" checked={test.selected} onChange={event => update(test.code,{selected:event.target.checked})}/><span><b>{test.name}</b><small>{test.range}</small></span></label>
-      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" step="any" value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'completed' ? 'Test date' : 'Planned date'}</span><input type="date" value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
+      {test.selected && <div className="exam-fields"><label><span>Status</span><select value={test.status} onChange={event => update(test.code,{status:event.target.value,date:''})}><option value="completed">Completed</option><option value="mock">МОК тест</option><option value="planned">Planned</option></select></label><label><span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? 'Result' : 'Score'}</span>{['OTHER','CAMBRIDGE','A_LEVEL'].includes(test.code) ? <input value={test.scoreText} onChange={event => update(test.code,{scoreText:event.target.value})} placeholder="Enter result"/> : <input type="number" min={test.min} max={test.max} step={test.step} value={test.score} onChange={event => update(test.code,{score:event.target.value})} placeholder={test.range}/>}</label><label><span>{test.status === 'planned' ? 'Planned date' : 'Test date'} *</span><input type="date" required value={test.date} onChange={event => update(test.code,{date:event.target.value})}/></label></div>}
     </article>)}</div>
     {error && <p className="exam-error">{error}</p>}
     <footer><small>These results will be used to match admission requirements.</small><button className="button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save and continue'} <span>{icons.arrow}</span></button></footer>

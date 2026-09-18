@@ -36,13 +36,16 @@ export async function fetchApplicantTests() {
 
 /** The database row shape, so the server stores what the UI collected without reshaping. */
 export function toProfileTestRows(tests) {
+  const testWithoutDate = tests.find(test => !test.date)
+  if (testWithoutDate) throw new Error(`${testWithoutDate.name || 'Exam'}: test date is required.`)
+
   return tests.map(test => ({
     test_code: test.code,
     test_name: test.name,
     status: test.status,
     score: test.score === '' || test.score == null ? null : Number(test.score),
     score_text: test.scoreText || null,
-    test_date: test.status === 'completed' ? test.date || null : null,
+    test_date: ['completed', 'mock'].includes(test.status) ? test.date || null : null,
     planned_date: test.status === 'planned' ? test.date || null : null,
   }))
 }

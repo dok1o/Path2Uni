@@ -70,3 +70,7 @@
   .compare-sheet header{padding:18px 16px 12px}.compare-scroll{padding:0 16px}
   .compare-table tbody th{width:128px;white-space:normal}
 }
+.match-site{display:inline-block;margin-top:4px;font-size:11px;font-weight:700;color:var(--purple);text-decoration:none}
+.match-site:hover{text-decoration:underline}
+.match-site.none{color:#a4a9b8;font-weight:600}
+.compare-table a{color:var(--purple);word-break:break-all}

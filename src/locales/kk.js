@@ -410,4 +410,5 @@ export const KK = {
   'Most universities open the year with a welcome week and run a spring festival. Dates move every year — take them from the university calendar.': 'Көптеген вуздар оқу жылын танысу аптасымен бастап, көктемгі фестиваль өткізеді. Күндері жыл сайын өзгереді — университет күнтізбесінен қараңыз.',
   'Everyday life': 'Күнделікті өмір',
   'Student districts sit near the campuses: cheaper rent, canteens, late libraries. Ask the student union which streets before signing anything.': 'Студенттік аудандар кампустардың жанында: жалдау арзан, асханалар, кеш жабылатын кітапханалар. Бірдеңеге қол қоймас бұрын студенттік одақтан қай көшелер екенін сұраңыз.',
+  'Official site': 'Ресми сайт',
 }

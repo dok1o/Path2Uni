@@ -410,4 +410,5 @@ export const RU = {
   'Most universities open the year with a welcome week and run a spring festival. Dates move every year — take them from the university calendar.': 'Большинство вузов открывают год неделей знакомства и проводят весенний фестиваль. Даты каждый год разные — сверяйтесь с календарём университета.',
   'Everyday life': 'Повседневность',
   'Student districts sit near the campuses: cheaper rent, canteens, late libraries. Ask the student union which streets before signing anything.': 'Студенческие районы расположены рядом с кампусами: аренда дешевле, столовые, библиотеки допоздна. Спросите у студсоюза, какие именно улицы, прежде чем что-то подписывать.',
+  'Official site': 'Официальный сайт',
 }

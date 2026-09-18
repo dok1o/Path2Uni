@@ -97,6 +97,9 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
             <div className="match-title">
               <h3>{match.name}</h3>
               {(match.city || match.country) && <small className="match-place">{[match.city, match.country].filter(Boolean).map(part => t(part)).join(', ')}</small>}
+              {match.website
+                ? <a className="match-site" href={match.website} target="_blank" rel="noreferrer">{t('Official site')} ↗</a>
+                : <span className="match-site none">{t('no confirmed address')}</span>}
             </div>
             <button className={`match-pick ${picked.includes(match.id) ? 'on' : ''}`} onClick={() => toggle(match.id)}
               aria-pressed={picked.includes(match.id)} aria-label={t('Select {name} to compare', { name: match.name })}>
@@ -126,6 +129,7 @@ export function Comparison({ items, onClose }) {
   const { t, n } = useT()
   const rows = useMemo(() => [
     { label: 'Where', get: item => [item.city, item.country].filter(Boolean).map(part => t(part)).join(', ') || '—', plain: true },
+    { label: 'Official site', get: item => item.website ?? t('no confirmed address'), link: item => item.website, plain: true },
     { label: 'English usually asked', get: item => item.requirements ? `${item.requirements.english.test} ${item.requirements.english.band}` : '—' },
     { label: 'Tuition', get: item => item.requirements ? money(item.requirements.tuition, t, n) : '—' },
     { label: 'Application rounds', get: item => item.requirements ? item.requirements.rounds.map(r => `${t(r.name)}: ${t(r.opens)}–${t(r.closes)}`).join('; ') : '—' },
@@ -152,7 +156,7 @@ export function Comparison({ items, onClose }) {
           <tbody>
             {rows.map(row => <tr key={row.label}>
               <th scope="row">{t(row.label)}{row.plain ? null : <DemoBadge compact/>}</th>
-              {items.map(item => <td key={item.id}>{row.get(item)}</td>)}
+              {items.map(item => { const href = row.link?.(item); return <td key={item.id}>{href ? <a href={href} target="_blank" rel="noreferrer">{row.get(item)}</a> : row.get(item)}</td> })}
             </tr>)}
           </tbody>
         </table>

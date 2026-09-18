@@ -1,3 +1,5 @@
+import { useT } from './i18n.jsx'
+
 const PRODUCT_LINKS = [
   { label: 'Home', page: 'home' },
   { label: 'My matches', page: 'advisor' },
@@ -7,6 +9,7 @@ const PRODUCT_LINKS = [
 ]
 
 export default function SiteFooter({ onNavigate }) {
+  const { t } = useT()
   const year = new Date().getFullYear()
 
   const navigate = page => {
@@ -18,36 +21,36 @@ export default function SiteFooter({ onNavigate }) {
     <div className="footer-grid">
       <section className="footer-brand" aria-label="Path2Uni">
         <div className="footer-logo"><span className="brand-mark">P</span><b>path<span>2</span>uni</b></div>
-        <p>A clear path from your university goal to the next practical step.</p>
-        <span className="footer-status"><i/>Built for international applicants</span>
+        <p>{t('A clear path from your university goal to the next practical step.')}</p>
+        <span className="footer-status"><i/>{t('Built for international applicants')}</span>
       </section>
 
-      <nav className="footer-nav" aria-label="Footer navigation">
-        <h2>Explore</h2>
-        {PRODUCT_LINKS.map(item => <button type="button" key={item.page} onClick={() => navigate(item.page)}>{item.label}</button>)}
+      <nav className="footer-nav" aria-label={t('Footer navigation')}>
+        <h2>{t('Explore')}</h2>
+        {PRODUCT_LINKS.map(item => <button type="button" key={item.page} onClick={() => navigate(item.page)}>{t(item.label)}</button>)}
       </nav>
 
       <section className="footer-column">
-        <h2>Project</h2>
-        <a href="https://github.com/dok1o/Path2Uni" target="_blank" rel="noreferrer">GitHub repository <i>↗</i></a>
-        <a href="mailto:aisardugasev@gmail.com">Contact the team</a>
-        <p>134 Lyceum, Almaty<br/>with support from FIZTEX</p>
+        <h2>{t('Project')}</h2>
+        <a href="https://github.com/dok1o/Path2Uni" target="_blank" rel="noreferrer">{t('GitHub repository')} <i>↗</i></a>
+        <a href="mailto:aisardugasev@gmail.com">{t('Contact the team')}</a>
+        <p>{t('134 Lyceum, Almaty')}<br/>{t('with support from FIZTEX')}</p>
       </section>
 
       <section className="footer-column footer-team">
-        <h2>Team</h2>
-        <p><strong>Дугашев Айсар</strong><small>Team lead</small></p>
+        <h2>{t('Team')}</h2>
+        <p><strong>Дугашев Айсар</strong><small>{t('Team lead')}</small></p>
         <p><strong>Оралхан Нурланды</strong></p>
         <p><strong>Кензин Эльмир</strong></p>
-        <p className="footer-mentor"><strong>Игорь Пак</strong><small>Mentor · FIZTEX</small></p>
+        <p><strong>Игорь Пак</strong></p>
       </section>
     </div>
 
-    <div className="footer-note">Path2Uni helps you organise research; always confirm requirements on the university’s official website.</div>
+    <div className="footer-note">{t('Path2Uni helps you organise research; always confirm requirements on the university’s official website.')}</div>
 
     <div className="footer-bottom">
-      <p>© {year} Path2Uni. Student project.</p>
-      <p>Almaty, Kazakhstan</p>
+      <p>© {year} Path2Uni. {t('Student project.')}</p>
+      <p>{t('Almaty, Kazakhstan')}</p>
     </div>
   </footer>
 }

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import mascot from './assets/leo-mascot.png'
 import { useT, LanguageSwitch } from './i18n.jsx'
+import Privacy from './Privacy.jsx'
 
 export default function Auth({ onSignedIn }) {
   const { t } = useT()
+  const [privacyOpen, setPrivacyOpen] = useState(false)
   const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ username: '', password: '', displayName: '', consent: false })
   const [error, setError] = useState(null)
@@ -37,6 +39,7 @@ export default function Auth({ onSignedIn }) {
   }
 
   return <div className="auth-screen">
+    {privacyOpen && <Privacy onClose={() => setPrivacyOpen(false)}/>}
     <LanguageSwitch/>
     <div className="auth-art">
       <div className="auth-orbit one"/><div className="auth-orbit two"/>
@@ -72,7 +75,7 @@ export default function Auth({ onSignedIn }) {
 
       {registering && <label className="auth-consent">
         <input type="checkbox" checked={form.consent} onChange={setConsent} required />
-        <span>I agree to the Terms of Use and consent to the processing of my personal data in accordance with the Privacy Policy.</span>
+        <span>{t('I consent to the processing of my personal data as described in')} <button type="button" className="auth-privacy-link" onClick={event => { event.preventDefault(); setPrivacyOpen(true) }}>{t('what Path2Uni does with your data')}</button>.</span>
       </label>}
 
       {error && <div className="auth-error" role="alert">{error}</div>}

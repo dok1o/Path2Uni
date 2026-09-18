@@ -14,3 +14,31 @@
 /* Keep the SVG and its longitude/latitude point layer in the same 4:3 projection frame. */
 .country-map-frame{position:absolute;top:48%;left:50%;width:min(86%,780px);aspect-ratio:4/3;transform:translate(-50%,-50%);transform-style:preserve-3d}.country-map-frame .country-map-rotation{position:absolute;inset:0}
 @media(max-width:700px){.country-map-frame{top:46%;width:96%}.country-map-frame .country-map-rotation{inset:0}}
+
+/* Карта: плавность. Перетаскивание остаётся мгновенным — карта, отстающая от пальца,
+   ощущается сломанной, — поэтому переход отключается на время жеста. */
+.country-map-zoom,.country-map-rotation{transition:transform .58s cubic-bezier(.22,1,.36,1)}
+.country-map-3d.is-dragging .country-map-zoom,.country-map-3d.is-dragging .country-map-rotation{transition:none}
+.country-contour-map path{transition:filter .4s ease}
+.country-map-3d:hover .country-contour-map path{filter:none}
+
+@keyframes poi-in{from{opacity:0;transform:translate(-50%,-50%) scale(.4)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.country-pois .map-poi{animation:poi-in .42s cubic-bezier(.22,1,.36,1) backwards}
+.country-pois .map-poi{transition:filter .25s ease,opacity .25s ease}
+.country-pois .map-poi>span{transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s ease}
+.country-pois .map-poi:hover>span{transform:scale(1.18)}
+.country-pois .map-poi.active>span{transform:scale(1.22)}
+
+@keyframes poi-pulse{0%{box-shadow:0 0 0 0 rgba(102,83,219,.5)}70%{box-shadow:0 0 0 16px rgba(102,83,219,0)}100%{box-shadow:0 0 0 0 rgba(102,83,219,0)}}
+.country-pois .map-poi.active>span{animation:poi-pulse 2.1s ease-out infinite}
+
+.country-zoom-controls button{transition:transform .18s ease,background .18s ease}
+.country-zoom-controls button:active:not(:disabled){transform:scale(.88)}
+.country-spin-control span{display:inline-block;transition:transform .5s cubic-bezier(.22,1,.36,1)}
+.country-spin-control:hover span{transform:rotate(-360deg)}
+
+@media(prefers-reduced-motion:reduce){
+  .country-map-zoom,.country-map-rotation{transition:none}
+  .country-pois .map-poi{animation:none}
+  .country-pois .map-poi.active>span{animation:none}
+}

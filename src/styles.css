@@ -25,7 +25,7 @@
 .auth-screen>.lang-switch{position:absolute;top:18px;right:20px;z-index:5;background:rgba(255,255,255,.92);backdrop-filter:blur(6px)}
 .auth-screen{position:relative}
 .onboarding>.lang-switch{align-self:flex-end}
-.footer-brand .lang-switch{margin-top:14px}
+.top-actions .lang-switch{height:43px;align-items:center}
 .profile-actions .lang-switch{margin-right:4px}
 @media(max-width:700px){.auth-screen>.lang-switch{top:10px;right:10px}.lang-switch button{padding:5px 9px;font-size:11px}}
 

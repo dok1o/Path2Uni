@@ -43,6 +43,9 @@ export function LanguageProvider({ children }) {
     setLang,
     locale: localeOf(lang),
     t: (text, vars) => translate(lang, text, vars),
+    // The map's notes are field lists joined with "·" — 127 combinations of 24 parts. The
+    // parts are what belongs in a dictionary; the joining is punctuation.
+    tParts: text => String(text ?? '').split('·').map(part => translate(lang, part.trim())).join(' · '),
     // Numbers read differently per language: 1,240 in English, 1 240 in Russian and Kazakh.
     n: value => Number(value ?? 0).toLocaleString(localeOf(lang)),
   }), [lang])

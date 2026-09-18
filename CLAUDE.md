@@ -14,6 +14,8 @@ npm test             # 190 tests, no network (database tests skip themselves wit
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
+npm run migrate      # applies database/core/*.sql in order, once each (--baseline to adopt an existing db)
+npm start            # migrate, then serve — what the host runs
 
 docker compose up -d core-db   # required for sign-in; see the port note below
 node --test tests/data.test.js   # a single file
@@ -191,7 +193,9 @@ Map mechanics in [src/WorldMap.jsx](src/WorldMap.jsx):
 
 ## Data layer (schema designed, mostly unused)
 
-Two physically separate PostgreSQL databases, initialized by numbered SQL files mounted into `/docker-entrypoint-initdb.d` — so **they run only against a fresh Docker volume**. Never edit a deployed script; add the next number instead (`003_auth.sql` and `004_auth_hardening.sql` were added this way). An existing volume needs the new file applied by hand: `docker compose exec core-db psql -U path2uni -d path2uni_core -f /docker-entrypoint-initdb.d/004_auth_hardening.sql`. No migration tool has been chosen yet.
+Two physically separate PostgreSQL databases, initialized by numbered SQL files. Locally they are mounted into `/docker-entrypoint-initdb.d`, so **they run only against a fresh Docker volume**; in hosting [scripts/migrate.js](scripts/migrate.js) applies them in filename order and records each in `schema_migrations`, which is what `npm start` runs before the server. A database built by hand adopts that bookkeeping with `npm run migrate -- --baseline`.
+
+Two rules the runner depends on and that the files must keep: **order is filename order** (008 assumes 005 ran), and **a shipped file is never edited** — add the next number instead. That is what makes "applied once, remembered forever" safe. `ALTER TYPE … ADD VALUE` gets its own transaction because it cannot share one. Never edit a deployed script; add the next number instead (`003_auth.sql` and `004_auth_hardening.sql` were added this way). An existing volume needs the new file applied by hand: `docker compose exec core-db psql -U path2uni -d path2uni_core -f /docker-entrypoint-initdb.d/004_auth_hardening.sql`. No migration tool has been chosen yet.
 
 - `database/core/` → `path2uni_core`, the product source of truth: profiles, universities/programs, admission cycles & requirements, itemized costs, outcomes, recommendation runs and roadmaps. `002_views.sql` defines `v_program_total_cost`, `v_admission_funnel`, `v_next_roadmap_action` — derived values (total cost, acceptance/yield rates) are computed by views from counts and items, never stored as hand-entered aggregates.
 - `database/intelligence/` → `path2uni_intelligence` (pgvector): source registry, crawl jobs, content-hashed document versions, chunks + embeddings, extracted claims with evidence, contradictions, human reviews, AI run telemetry. It links to core rows by UUID only — there is no cross-database foreign key.

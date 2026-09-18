@@ -75,6 +75,22 @@ if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) 
   console.log(ok(`SMTP set (${process.env.SMTP_USER})`))
 }
 
+// --- a hosted database, if one is configured ---
+if (process.env.DATABASE_URL) {
+  const url = process.env.DATABASE_URL
+  console.log(ok(`DATABASE_URL set (${url.replace(/\/\/[^@]*@/, '//***@').slice(0, 72)}…)`))
+  if (/:6543\//.test(url)) {
+    console.log(warn('That is the transaction pooler (port 6543)'))
+    console.log(hint('Transaction pooling drops prepared statements, and every parameterised'))
+    console.log(hint('query here is one. Use the session pooler instead.'))
+  }
+  if (/^postgres(ql)?:\/\/[^@]*@db\./.test(url)) {
+    console.log(warn('That looks like a Supabase DIRECT connection (db.<ref>.supabase.co)'))
+    console.log(hint('Direct connections are IPv6-only and will time out from an IPv4 host'))
+    console.log(hint('such as a free Render instance. Use the session pooler string.'))
+  }
+}
+
 // --- Docker and the database ---
 let dockerUp = false
 try { execSync('docker info', { stdio: 'ignore' }); dockerUp = true; console.log(ok('Docker is running')) }

@@ -1,0 +1,70 @@
+# Render blueprint. Create the service from this file rather than clicking through the
+# dashboard, so the next person can see what the deployment actually is.
+#
+# The four settings that matter, and why:
+#
+#   TRUST_PROXY=1   Render terminates TLS and talks plain HTTP to the container, so the
+#                   socket looks insecure from inside. Without this the session cookie never
+#                   gets Secure and HSTS is never sent — server/index.js refuses to believe
+#                   x-forwarded-proto unless told to, because otherwise any client could
+#                   claim TLS and be handed cookies the browser will never send back.
+#   DATABASE_URL    The Supabase connection string, pasted into the dashboard. server/db.js
+#                   reads it in place of the five local CORE_DB_* variables and turns on TLS.
+#
+#                   Take the POOLER string, not the direct one. Supabase serves direct
+#                   connections over IPv6 only, and Render's free instances have no IPv6 —
+#                   the app would simply never connect, with a timeout rather than an error
+#                   that says why. In Supabase: Project Settings -> Database -> Connection
+#                   string -> Session pooler.
+#
+#                   Session mode, not transaction mode (port 6543). Transaction pooling does
+#                   not keep prepared statements, and every parameterised query in this app
+#                   is one.
+#   npm start       Runs the migrations, then the server. Render's database starts empty and
+#                   has no equivalent of Docker's init directory.
+#   NODE_VERSION    This Vite needs styleText from node:util — 20.19+ or 22.12+.
+#
+# Secrets are sync:false, which means Render asks for them once in the dashboard and never
+# stores them here. Never commit a key, a database password or an SMTP app password.
+
+services:
+  - type: web
+    name: path2uni
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      # Asked for once in the dashboard. Generate the two key lines with `npm run keygen`.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: P2U_KEYS
+        sync: false
+      - key: P2U_INDEX_KEY
+        sync: false
+      # Mail is optional: with these empty the app runs exactly as it does now, minus codes
+      # and reminders. SMTP_PASS is a Google App Password, not the account password.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+# No `databases:` block: the database is Supabase, and its URL goes in as a secret above.
+# If you ever move to Render's own Postgres, add the block back and wire DATABASE_URL to it
+# with `fromDatabase` instead of `sync: false`.

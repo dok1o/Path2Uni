@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
-    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js",
+    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/map-markers.test.js",
     "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/api.test.js",
     "keygen": "node scripts/keygen.js",
     "catalog:fetch": "node scripts/fetch-wikidata.js",

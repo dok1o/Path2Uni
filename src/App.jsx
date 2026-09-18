@@ -13,6 +13,7 @@ import NotFound from './NotFound.jsx'
 import { useT, LanguageSwitch } from './i18n.jsx'
 import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.js'
 import { cityLife, loadCityLife } from './data/cityLife.js'
+import { markerPositions } from './services/mapMarkers.js'
 import { loadApplicantProfile, saveApplicantTests } from './services/applicantProfile.js'
 const icons = {
   home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '◔',
@@ -332,71 +333,6 @@ function CountryFlagPattern({ country }) {
   return <pattern {...patternProps}>{stripes(['#111','#dd0000','#ffce00'])}</pattern>
 }
 
-function spreadCloseMarkers(cities, map, zoom, frame) {
-  const width = Math.max(1, frame.width)
-  const height = Math.max(1, frame.height)
-  const points = cities.map(place => {
-    const [mapX, mapY] = map.project(place.coordinates)
-    return { place, mapX, mapY, x:mapX / 720 * width, y:mapY / 540 * height }
-  })
-  if (zoom <= 1) return points.map(point => ({ ...point, displayX:point.mapX, displayY:point.mapY, displaced:false }))
-
-  const parent = points.map((_, index) => index)
-  const root = index => parent[index] === index ? index : (parent[index] = root(parent[index]))
-  const join = (a, b) => { const left = root(a); const right = root(b); if (left !== right) parent[right] = left }
-  for (let left = 0; left < points.length; left += 1) {
-    for (let right = left + 1; right < points.length; right += 1) {
-      if (Math.hypot(points[left].x - points[right].x, points[left].y - points[right].y) < 40) join(left, right)
-    }
-  }
-  const groups = new Map()
-  points.forEach((_, index) => {
-    const key = root(index)
-    groups.set(key, [...(groups.get(key) ?? []), index])
-  })
-
-  const screenPoints = points.map(point => ({ x:point.x * zoom, y:point.y * zoom }))
-  const separation = (zoom - 1) * 14
-  const minimumDistance = 40 * Math.min(1, (zoom - 1) / .55)
-  for (const indexes of groups.values()) {
-    if (indexes.length < 2) continue
-    const center = indexes.reduce((sum, index) => ({ x:sum.x + screenPoints[index].x / indexes.length, y:sum.y + screenPoints[index].y / indexes.length }), { x:0, y:0 })
-    indexes.forEach((index, order) => {
-      let dx = screenPoints[index].x - center.x
-      let dy = screenPoints[index].y - center.y
-      let distance = Math.hypot(dx, dy)
-      if (distance < .5) {
-        const angle = order / indexes.length * Math.PI * 2
-        dx = Math.cos(angle); dy = Math.sin(angle); distance = 1
-      }
-      screenPoints[index].x += dx / distance * separation
-      screenPoints[index].y += dy / distance * separation
-    })
-    for (let pass = 0; pass < 5; pass += 1) {
-      for (let left = 0; left < indexes.length; left += 1) {
-        for (let right = left + 1; right < indexes.length; right += 1) {
-          const a = screenPoints[indexes[left]]
-          const b = screenPoints[indexes[right]]
-          let dx = b.x - a.x
-          let dy = b.y - a.y
-          let distance = Math.hypot(dx, dy)
-          if (distance >= minimumDistance) continue
-          if (distance < .5) { dx = 1; dy = 0; distance = 1 }
-          const shift = (minimumDistance - distance) / 2
-          a.x -= dx / distance * shift; a.y -= dy / distance * shift
-          b.x += dx / distance * shift; b.y += dy / distance * shift
-        }
-      }
-    }
-  }
-
-  return points.map((point, index) => {
-    const displayX = screenPoints[index].x / zoom / width * 720
-    const displayY = screenPoints[index].y / zoom / height * 540
-    return { ...point, displayX, displayY, displaced:Math.hypot(displayX - point.mapX, displayY - point.mapY) > 1 }
-  })
-}
-
 function CountryMap3D({ country, city, onSelectCity }) {
   const { t } = useT()
   const map = useMemo(() => getCountryMap(country), [country])
@@ -407,20 +343,15 @@ function CountryMap3D({ country, city, onSelectCity }) {
   const frameRef = useRef(null)
   const pointers = useRef(new Map())
   const [frameSize, setFrameSize] = useState({ width:720, height:540 })
-  const spreadsCloseMarkers = country.id === 'italy' && view.zoom > 1
-  const markerLayout = useMemo(() => country.id === 'italy'
-    ? spreadCloseMarkers(country.cities, map, view.zoom, frameSize)
-    : country.cities.map(place => {
-      const [mapX, mapY] = map.project(place.coordinates)
-      return { place, mapX, mapY, displayX:mapX, displayY:mapY, displaced:false }
-    }), [country.cities, country.id, frameSize, map, view.zoom])
+  const zoomed = view.zoom > 1
+  const markerLayout = useMemo(() => markerPositions(country.cities, map.project, view.zoom, frameSize),
+    [country.cities, frameSize, map, view.zoom])
 
   useEffect(() => {
     setRotation({ x:-9, y:-12 }); setView({ zoom:1, x:0, y:0 }); setDrag(null); pointers.current.clear()
   }, [country.id])
 
   useEffect(() => {
-    if (country.id !== 'italy') return undefined
     const frame = frameRef.current
     if (!frame) return undefined
     const measure = () => {
@@ -461,8 +392,8 @@ function CountryMap3D({ country, city, onSelectCity }) {
    */
   const focusCity = marker => {
     const zoom = clampZoom(Math.max(view.zoom, 2.1))
-    const offsetX = (marker.displayX / 720 - .5) * frameSize.width
-    const offsetY = (marker.displayY / 540 - .5) * frameSize.height
+    const offsetX = (marker.mapX / 720 - .5) * frameSize.width
+    const offsetY = (marker.mapY / 540 - .5) * frameSize.height
     setView({ zoom, x:clampPan(-offsetX * zoom, zoom), y:clampPan(-offsetY * zoom, zoom) })
   }
 
@@ -511,13 +442,18 @@ function CountryMap3D({ country, city, onSelectCity }) {
     <div ref={surfaceRef} className={`country-map-3d ${drag ? 'is-dragging' : ''}`} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} onDoubleClick={event => { if (!event.target.closest('button')) changeZoom(view.zoom > 1 ? -view.zoom : 1) }}>
       <div ref={frameRef} className="country-map-frame">
         <div className="country-map-zoom" style={{ transform:`translate3d(${view.x}px,${view.y}px,0) scale(${view.zoom})` }}>
-          <div className="country-map-rotation" style={{ transform:`rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
+          <div className={`country-map-rotation ${zoomed ? 'is-flat' : ''}`} style={{ transform: zoomed ? 'none' : `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)` }}>
             <svg className="country-contour-map" viewBox={MAP_VIEWBOX} role="img" aria-label={`${country.name} contour map in its flag colours`}>
               <defs><CountryFlagPattern country={country}/><filter id={`country-shadow-${country.id}`} x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="14" floodColor="#2b3158" floodOpacity=".28"/></filter></defs>
               <path d={map.path} fill={`url(#country-flag-${country.id})`} fillRule="evenodd" filter={`url(#country-shadow-${country.id})`}/>
-              <path d={map.path} fill="none" stroke="rgba(255,255,255,.94)" strokeWidth="3" strokeLinejoin="round" fillRule="evenodd"/>
+              {/* The fill is the national flag, and a white band on a near-white page is
+                  invisible — which is why a pin over central Italy read as standing in the
+                  sea. The white stroke stays as a halo; a soft ink coastline over it is what
+                  actually tells land from water. */}
+              <path d={map.path} fill="none" stroke="rgba(255,255,255,.94)" strokeWidth="4" strokeLinejoin="round" fillRule="evenodd"/>
+              <path d={map.path} fill="none" stroke="rgba(46,51,96,.34)" strokeWidth="1.6" strokeLinejoin="round" fillRule="evenodd"/>
             </svg>
-            <div className="country-pois">{markerLayout.map((marker, index) => <button key={marker.place.name} style={{ left:`${marker.displayX / 7.2}%`, top:`${marker.displayY / 5.4}%`, animationDelay:`${Math.min(index, 14) * 45}ms`, ...(spreadsCloseMarkers ? { '--poi-scale':1 / view.zoom } : {}) }} className={`map-poi country-map-poi ${country.id === 'italy' ? 'italy-marker' : ''} ${spreadsCloseMarkers ? 'is-separated' : ''} ${city?.name === marker.place.name ? 'active' : ''}`} onPointerDown={event => event.stopPropagation()} onClick={() => { focusCity(marker); onSelectCity(marker.place) }} aria-label={t('Explore universities in {city}', { city:marker.place.name })}><span><i>⌂</i></span><b>{t(marker.place.name)}</b><small>{t('{count} universities', { count:marker.place.universities.length })}</small></button>)}</div>
+            <div className="country-pois">{markerLayout.map((marker, index) => <button key={marker.place.name} style={{ left:`${marker.mapX / 7.2}%`, top:`${marker.mapY / 5.4}%`, animationDelay:`${Math.min(index, 14) * 45}ms`, '--poi-scale':1 / view.zoom }} className={`map-poi country-map-poi ${zoomed ? 'is-zoomed' : ''} ${marker.crowded ? 'is-crowded' : ''} ${city?.name === marker.place.name ? 'active' : ''}`} onPointerDown={event => event.stopPropagation()} onClick={() => { focusCity(marker); onSelectCity(marker.place) }} aria-label={t('Explore universities in {city}', { city:marker.place.name })}><span><i>⌂</i></span><b>{t(marker.place.name)}</b><small>{t('{count} universities', { count:marker.place.universities.length })}</small></button>)}</div>
           </div>
         </div>
       </div>
@@ -528,7 +464,7 @@ function CountryMap3D({ country, city, onSelectCity }) {
       <button type="button" onClick={() => changeZoom(.25)} disabled={view.zoom >= 3.2} aria-label={t('Zoom in')}>+</button>
     </div>
     <button className="country-spin-control" onClick={resetMap} aria-label={t('Reset map view')}><span>↻</span> {t('Reset map')}</button>
-    <p className="country-map-gesture">{t(country.id === 'italy' && view.zoom > 1 ? 'Close cities spread apart · drag to move' : view.zoom > 1 ? 'Drag to move · pinch or scroll to zoom' : 'Drag to rotate · pinch or scroll to zoom')}</p>
+    <p className="country-map-gesture">{t(country.id === 'italy' && view.zoom > 1 ? 'Drag to move · pinch or scroll to zoom' : view.zoom > 1 ? 'Drag to move · pinch or scroll to zoom' : 'Drag to rotate · pinch or scroll to zoom')}</p>
   </div>
 }
 

@@ -10,7 +10,7 @@ npm run dev          # Vite dev server — also mounts the plan API at /api/ai/a
 npm run build        # production build into dist/ (gitignored — npm run server needs it built first)
 npm run preview      # serve the built bundle
 npm run server       # serves dist/ AND the API on :8787 — one origin, which is what cookie auth needs
-npm test             # 174 tests, no network (database tests skip themselves without Postgres)
+npm test             # 180 tests, no network (database tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
@@ -78,6 +78,9 @@ Constraints that are easy to break:
 - **`task.type` must stay `research` | `documents` | `application`.** `TaskIcon` and the `.osint-node.task.*` / `.panel-task-icon.*` CSS only cover those three; a fourth type renders as a bare fallback icon with default colors.
 - **Graph `x`/`y` are percentages of the OSINT canvas, and a node card is ~20% of it wide and ~9% tall.** Two nodes closer than that in both axes visibly overlap. Current layout keeps fixed nodes on the left (`profile`/`goal`/`source`/`requirement`) and staggers tasks down `x: 74/86`.
 - **Nothing on Home or the Decision Map may be a literal.** Both pages were mostly hardcoded demo: a fixed date, an "Italian dream", a "5 days left" deadline, "GPA 4.4", "12 sources verified", Universitaly listed for every destination. Home now reads the plan, the profile and the recorded exams; the deadline card counts down only to an exam the person booked themselves, because that is the single real date this app holds. `countSources()` counts the shortlisted universities that have a confirmed link, plus the national portal — a number you can click through, not one someone typed.
+- **A city pin sits exactly where the projection puts it** ([src/services/mapMarkers.js](src/services/mapMarkers.js), pinned by `tests/map-markers.test.js`). Three separate things had moved it, and each looked reasonable on its own: markers were pushed apart as you zoomed to stop labels overlapping, which put Florence in the sea; `translate(-50%,-50%)` centred the dot *and its label* on the city, so every pin sat half a label west; and the pins rendered at `translateZ(34px)` while the contour rendered at `20px`, two different planes under `perspective`. Overlap is a label problem and gets a label answer — a crowded marker hides its label until hovered, measured as a label *box* because labels run rightwards.
+- **The country fill is the national flag, so white bands need a coastline.** Italy's middle third is white on a near-white page: pins over central Italy read as floating in the sea. A soft ink stroke over the white halo is what separates land from water.
+- **Zoom flattens the 3D tilt.** A rotated subtree is rasterised into a texture, and scaling that texture is what made a zoomed map look soft. Someone zooming in wants to read the map, not tilt it.
 - **GamePath computes level `top` and the SVG trail from the task count** — nothing about the map is hardcoded to 3 levels any more, including the two decorative `.path-reward` chips, which are placed in the gaps between levels.
 - `edges` are `[fromId, toId]` pairs referencing node ids; the OSINT inspector finds neighbours by flattening edges containing the selected id, so every task id must also exist as a node id.
 

@@ -9,6 +9,7 @@ import {
   destinationOptions, fieldOptions, levelOptions, englishLevels,
 } from './profiles.js'
 import { askLeo } from './chat.js'
+import { getTests, saveTests } from './tests.js'
 import { buildGraph } from '../src/services/planShape.js'
 import { readObjective } from '../src/services/planContext.js'
 
@@ -111,6 +112,16 @@ export async function route(request) {
       const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
       await savePlan(me.id, { plan, objective })
       return json(200, { plan: { ...plan, objective } })
+    }
+
+    if (path === '/api/me/tests' && method === 'GET') {
+      return json(200, { tests: await getTests(me.id) })
+    }
+
+    if (path === '/api/me/tests' && method === 'PUT') {
+      const result = await saveTests(me.id, parsed.tests)
+      if (result.error) return json(result.status, { error: result.error })
+      return json(200, { tests: result.tests })
     }
 
     if (path === '/api/me/chat' && method === 'POST') {

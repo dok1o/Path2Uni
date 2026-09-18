@@ -3,6 +3,11 @@
 import pg from 'pg'
 import './env.js'
 
+// A DATE has no time and no zone, but the driver hands back a JS Date at local midnight.
+// Converting that to ISO shifts it into the previous day on any positive UTC offset, which
+// turned an exam sat on the 14th into the 13th. Take the value as the string Postgres sent.
+pg.types.setTypeParser(1082, value => value)
+
 const settings = process.env
 
 export const pool = new pg.Pool({

@@ -158,7 +158,7 @@ export async function route(request) {
 
       const [diagnosis, matches] = await Promise.all([
         diagnose({ apiKey, profile, tests, lang }),
-        explainMatches({ apiKey, profile, tests, shortlist, lang }),
+        explainMatches({ apiKey, profile, tests, shortlist, lang, fieldTag }),
       ])
       // A rules-only answer means the model was unreachable; caching it would freeze the
       // fallback in place until the profile changes.

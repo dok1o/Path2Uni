@@ -20,6 +20,34 @@ function money({ min, max, currency, period }, t, n) {
 /** Which of the chosen countries the shortlist actually reached, in the order they appear. */
 const countriesIn = matches => [...new Set(matches.map(match => match.country).filter(Boolean))]
 
+const STATE_MARK = { met: '✓', close: '~', missing: '·' }
+
+/**
+ * The readiness meter. It counts requirements, it does not predict an outcome — the label
+ * and the footnote both say so, because a bar that fills up reads as a probability unless
+ * it is told not to.
+ */
+function Readiness({ readiness, open, onToggle }) {
+  const { t } = useT()
+  if (!readiness) return null
+  return <div className={`readiness ${readiness.tone}`}>
+    <button className="readiness-head" onClick={onToggle} aria-expanded={open}>
+      <span className="readiness-bars" aria-hidden="true">{readiness.checks.map(check =>
+        <i key={check.id} className={check.state}/>)}</span>
+      <span className="readiness-label">{t(readiness.label)}</span>
+      <span className="readiness-count">{t('{met} of {total}', { met: readiness.met, total: readiness.total })}</span>
+      <span className="readiness-chevron">{open ? '▾' : '▸'}</span>
+    </button>
+    {open && <div className="readiness-detail">
+      <ul>{readiness.checks.map(check => <li key={check.id} className={check.state}>
+        <i>{STATE_MARK[check.state]}</i>
+        <span><b>{t(check.label)}</b>{check.evidence === 'demo' && <DemoBadge compact/>}<small>{t(check.detail, check.vars)}</small></span>
+      </li>)}</ul>
+      <p className="readiness-basis">{t('This counts the requirements we know about. It is not a probability of admission — we do not hold entry scores or competition figures, and we will not invent them.')}</p>
+    </div>}
+  </div>
+}
+
 const GAP_TONE = { clear: 'good', likely: 'good', just: 'warn', plan: 'warn', short: 'bad', unknown: 'warn' }
 
 export default function Advisor({ profile, onCompare, onOpenPlan }) {
@@ -44,6 +72,7 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
   }, [lang, profile.id, profile.destination, profile.field, profile.degree, profile.intake, profile.englishLevel])
 
   const [picked, setPicked] = useState([])
+  const [openReadiness, setOpenReadiness] = useState(null)
   const toggle = id => setPicked(current =>
     current.includes(id) ? current.filter(item => item !== id) : current.length >= 3 ? current : [...current, id])
 
@@ -120,6 +149,8 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
             <div><dt>{t('Tuition')}</dt><dd>{money(requirements.tuition, t, n)} <DemoBadge compact/></dd></div>
             <div><dt>{t('Rounds')}</dt><dd>{requirements.rounds.map(round => t(round.name)).join(', ')} <DemoBadge compact/></dd></div>
           </dl>}
+          <Readiness readiness={match.readiness} open={openReadiness === match.id}
+            onToggle={() => setOpenReadiness(openReadiness === match.id ? null : match.id)}/>
           <p className="match-watch"><i>!</i>{match.watch}</p>
         </motion.article>
       })}</AnimatePresence>
@@ -158,6 +189,7 @@ export function Comparison({ items, onClose }) {
   const rows = useMemo(() => [
     { label: 'Where', get: item => [item.city, item.country].filter(Boolean).map(part => t(part)).join(', ') || '—', plain: true },
     { label: 'Official site', get: item => item.website ?? t('no confirmed address'), link: item => item.website, plain: true },
+    { label: 'Readiness', get: item => item.readiness ? `${t(item.readiness.label)} — ${t('{met} of {total}', { met: item.readiness.met, total: item.readiness.total })}` : '—', plain: true },
     { label: 'English usually asked', get: item => item.requirements ? `${item.requirements.english.test} ${item.requirements.english.band}` : '—' },
     { label: 'Tuition', get: item => item.requirements ? money(item.requirements.tuition, t, n) : '—' },
     { label: 'Application rounds', get: item => item.requirements ? item.requirements.rounds.map(r => `${t(r.name)}: ${t(r.opens)}–${t(r.closes)}`).join('; ') : '—' },

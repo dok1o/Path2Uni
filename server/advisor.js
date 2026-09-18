@@ -11,6 +11,7 @@ import { callGemini, languageRule } from './gemini.js'
 import { query } from './db.js'
 import { requirementsFor, englishGap, DEMO_NOTICE } from '../src/data/admissionDemo.js'
 import { universities, cityById, FIELD_LABELS } from '../src/data/worldUniversities.js'
+import { assessReadiness } from '../src/services/readiness.js'
 
 const RULES = `You are writing inside Path2Uni, for a school leaver applying abroad.
 
@@ -185,7 +186,7 @@ export async function diagnose({ apiKey, profile, tests, lang = 'en' }) {
 }
 
 /** Stage 4: why each shortlisted university suits this person. */
-export async function explainMatches({ apiKey, profile, tests, shortlist, lang = 'en' }) {
+export async function explainMatches({ apiKey, profile, tests, shortlist, lang = 'en', fieldTag = null }) {
   const picked = shortlist.slice(0, 6)
   if (!picked.length) return []
 
@@ -203,6 +204,9 @@ export async function explainMatches({ apiKey, profile, tests, shortlist, lang =
       levels: entry.levels,
       requirements,
       gap: englishGap({ englishLevel: profile.englishLevel, tests }, requirements?.english),
+      // Computed here, deterministically, and never asked of the model: the one thing the
+      // prompt forbids is exactly a statement about someone's chances.
+      readiness: assessReadiness({ profile, tests, university: record ?? entry, requirements, fieldTag }),
     }
   })
 
@@ -212,6 +216,7 @@ export async function explainMatches({ apiKey, profile, tests, shortlist, lang =
     city: item.city,
     country: item.country,
     website: item.website,
+    readiness: item.readiness,
     why: `${item.name} teaches ${item.fields.map(f => FIELD_LABELS[f] ?? f).slice(0, 2).join(' and ')} in ${item.city}, at the level you are aiming for.`,
     watch: item.gap.detail,
     requirements: item.requirements,
@@ -255,6 +260,7 @@ export async function explainMatches({ apiKey, profile, tests, shortlist, lang =
         city: item.city,
         country: item.country,
         website: item.website,
+        readiness: item.readiness,
         why: match ? String(match.why).slice(0, 320) : `${item.name} teaches your field in ${item.city}.`,
         watch: match ? String(match.watch).slice(0, 200) : item.gap.detail,
         requirements: item.requirements,

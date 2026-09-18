@@ -43,7 +43,43 @@ the API from one origin on `:8787`, which is what the session cookie needs.
 
 ---
 
-## Deploying it (Render + Supabase)
+## Deploying it (Vercel + Supabase)
+
+`vercel.json` deploys the Vite frontend to Vercel's CDN and rewrites every `/api/*` request
+to the single function in `api/index.js`. The adapter calls the same router as local Vite and
+the standalone server, so production does not have a second implementation of the API.
+
+1. **Supabase**: create a project close to Vercel's `fra1` region. Save the database password.
+2. **Apply the schema once** before the first deploy. In Supabase, click **Connect**, choose
+   **Session pooler** (port 5432), put that URL in local `.env` as `DATABASE_URL`, and run
+   `npm run migrate`. The migration runner remembers every applied file, so the same command
+   is safe again when a future migration is added.
+3. In Supabase **Connect**, switch to **Transaction pooler** (port 6543) and copy that URL for
+   Vercel. Serverless functions create short-lived clients, which is the workload transaction
+   mode is designed for. `server/db.js` automatically limits every Vercel instance to one
+   database connection.
+4. In Vercel choose **Add New → Project**, import this GitHub repository and keep the settings
+   from `vercel.json` (`Vite`, `npm run build`, output `dist`).
+5. Add these Environment Variables for **Production**. Add them to Preview or Development
+   only if those deployments are intentionally allowed to use the same database:
+   - `DATABASE_URL` — the **Transaction pooler** URL from step 3;
+   - `GEMINI_API_KEY`;
+   - `P2U_KEYS` and `P2U_INDEX_KEY` — `npm run keygen` prints both;
+   - `CRON_SECRET` — a new random value at least 16 characters long;
+   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM` if email codes and
+     reminders are required.
+6. Deploy and check `/api/health`. It should report `database: "up"` and
+   `model: "configured"`.
+
+Do not regenerate `P2U_KEYS` after real accounts exist: those keys encrypt stored email
+addresses. Vercel invokes `/api/cron` once daily at 05:00 UTC for digests and expired-code
+cleanup; the endpoint rejects every request that does not carry `CRON_SECRET`. The free Hobby
+plan allows daily cron jobs, but does not guarantee the exact minute.
+
+The frontend is always served by the CDN rather than a sleeping container. API functions can
+still have a short cold start, but there is no Render-style wait for the whole site to wake.
+
+## Alternative deployment (Render + Supabase)
 
 `render.yaml` is the blueprint — create the service from it rather than clicking through the
 dashboard, so the deployment is something the next person can read.

@@ -78,7 +78,9 @@ if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) 
 // --- a hosted database, if one is configured ---
 if (process.env.DATABASE_URL) {
   const url = process.env.DATABASE_URL
-  console.log(ok(`DATABASE_URL set (${url.replace(/\/\/[^@]*@/, '//***@').slice(0, 72)}…)`))
+  // Mask through the final @ in the authority: an unescaped @ in a bad password must not
+  // leak the remainder while the doctor is explaining why the connection failed.
+  console.log(ok(`DATABASE_URL set (${url.replace(/\/\/[^/]*@/, '//***@').slice(0, 72)}…)`))
   if (/:6543\//.test(url)) {
     console.log(warn('That is the transaction pooler (port 6543)'))
     console.log(hint('Transaction pooling drops prepared statements, and every parameterised'))

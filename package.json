@@ -3,14 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server/index.js",
     "db:migrate": "node scripts/migrate.js",
-    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/map-markers.test.js tests/challenges.test.js",
-    "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/api.test.js",
+    "test": "node --test tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/map-markers.test.js tests/challenges.test.js tests/vercel-adapter.test.js",
+    "test:live": "node --test --test-timeout=120000 tests/data.test.js tests/plan.test.js tests/crypto.test.js tests/auth.test.js tests/profiles.test.js tests/chat.test.js tests/tests-step.test.js tests/activity.test.js tests/advisor-route.test.js tests/readiness.test.js tests/api.test.js tests/vercel-adapter.test.js",
     "keygen": "node scripts/keygen.js",
     "catalog:fetch": "node scripts/fetch-wikidata.js",
     "catalog:maps": "node scripts/build-country-maps.mjs",
@@ -19,6 +22,7 @@
     "start": "node scripts/migrate.js && node server/index.js"
   },
   "dependencies": {
+    "@vercel/functions": "^3.9.8",
     "@vitejs/plugin-react": "latest",
     "@xyflow/react": "^12.11.6",
     "d3-geo": "^3.1.1",

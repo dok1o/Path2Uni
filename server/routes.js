@@ -30,7 +30,7 @@ const adviceRefreshes = new Map()
 // Render deterministic matches immediately; when Gemini is configured it refines the same
 // result once in the background and the existing fingerprint cache serves it next time.
 function refreshAdviceInBackground({ key, apiKey, profile, tests, shortlist, fingerprint, lang, fieldTag }) {
-  if (!apiKey || adviceRefreshes.has(key)) return
+  if (!apiKey || adviceRefreshes.has(key)) return null
   const refresh = Promise.all([
     diagnose({ apiKey, profile, tests, lang }),
     explainMatches({ apiKey, profile, tests, shortlist, lang, fieldTag }),
@@ -42,6 +42,7 @@ function refreshAdviceInBackground({ key, apiKey, profile, tests, shortlist, fin
     console.warn('[path2uni] My Matches background refresh failed:', error.message)
   }).finally(() => adviceRefreshes.delete(key))
   adviceRefreshes.set(key, refresh)
+  return refresh
 }
 
 export const readCookie = (header, name = COOKIE) =>
@@ -105,7 +106,13 @@ const readLang = (query, parsed) => {
 }
 
 export async function route(request) {
-  const { method, path, query, body, cookie, userAgent, apiKey, secure = false } = request
+  const {
+    method, path, query, body, cookie, userAgent, apiKey, secure = false,
+    // Long-lived Node processes need no help here. Serverless adapters can register the
+    // promise with their request lifecycle so a background cache write is not frozen as
+    // soon as the response has been returned.
+    defer = () => {},
+  } = request
 
   // Local, not module-level: rebinding a shared helper would leak this request's `secure`
   // into every later one and stack a new wrapper on each call.
@@ -284,9 +291,10 @@ export async function route(request) {
         diagnose({ apiKey:null, profile, tests, lang }),
         explainMatches({ apiKey:null, profile, tests, shortlist, lang, fieldTag }),
       ])
-      refreshAdviceInBackground({
+      const refresh = refreshAdviceInBackground({
         key:`${profile.id}:${fingerprint}`, apiKey, profile, tests, shortlist, fingerprint, lang, fieldTag,
       })
+      if (refresh) defer(refresh)
       return json(200, { diagnosis, matches, cached:false, refreshing:Boolean(apiKey) })
     }
 

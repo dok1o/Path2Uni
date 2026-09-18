@@ -29,14 +29,20 @@ const hosted = settings.DATABASE_URL
 
 export const pool = new pg.Pool({
   ...hosted,
-  max: 8,
-  idleTimeoutMillis: 30_000,
+  // A Vercel instance is only one of many short-lived database clients. Keeping the
+  // per-instance pool at one prevents a burst of functions from exhausting Supabase's
+  // shared transaction pooler. The standalone server remains a normal long-lived pool.
+  max: Number(settings.DB_POOL_MAX || (settings.VERCEL ? 1 : 8)),
+  idleTimeoutMillis: settings.VERCEL ? 5_000 : 30_000,
   connectionTimeoutMillis: 4_000,
+  allowExitOnIdle: Boolean(settings.VERCEL),
 })
 
 /** What the doctor and the migration runner print, without ever printing a password. */
 export const describeConnection = () => settings.DATABASE_URL
-  ? `DATABASE_URL → ${String(settings.DATABASE_URL).replace(/\/\/[^@]*@/, '//***@')}`
+  // Greedy up to the final @ in the URL authority. A raw @ inside a mistyped password
+  // must never make the rest of that password appear in diagnostics.
+  ? `DATABASE_URL → ${String(settings.DATABASE_URL).replace(/\/\/[^/]*@/, '//***@')}`
   : `${settings.CORE_DB_USER || 'path2uni'}@${settings.CORE_DB_HOST || 'localhost'}:${settings.CORE_DB_PORT || 5432}/${settings.CORE_DB_NAME || 'path2uni_core'}`
 
 // An unreachable database must not take the process down; routes report it instead.

@@ -247,15 +247,12 @@
 .footer-contact { text-align: right; align-self: center; }
 .footer-contact a { color: #37324f; font-size: 11px; font-weight: 800; text-decoration: none; border-bottom: 1px solid #c9c2e9; }
 .footer-contact a:hover { color: #6551c9; border-color: #6551c9; }
-<<<<<<< HEAD
 .city-shortlist-backdrop{position:fixed;z-index:30;inset:0;display:grid;place-items:center;padding:24px;background:rgba(30,31,52,.46);backdrop-filter:blur(7px)}
 .city-shortlist-modal{width:min(680px,100%);max-height:min(760px,calc(100vh - 48px));display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.8);border-radius:25px;background:#fbfbff;box-shadow:0 35px 100px rgba(24,25,49,.3)}
 .city-shortlist-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:25px 27px 20px;border-bottom:1px solid #e9e9f1;background:linear-gradient(135deg,#f0edff,#fff)}
 .city-shortlist-modal>header .eyebrow{margin-bottom:6px}.city-shortlist-modal>header h2{font-size:27px}.city-shortlist-modal>header p{margin-top:5px;font-size:10px}.city-shortlist-modal>header>button{width:34px;height:34px;flex:none;border-radius:11px;background:#fff;color:#665b8b;box-shadow:0 5px 14px rgba(38,38,75,.08);font-size:22px}
 .city-shortlist-list{display:grid;gap:9px;padding:18px 22px;overflow-y:auto}.city-shortlist-list>article{display:grid;grid-template-columns:38px minmax(0,1fr) 39px;align-items:center;gap:13px;padding:14px;border:1px solid #e8e8f0;border-radius:16px;background:#fff}.shortlist-number{width:36px;height:36px;display:grid;place-items:center;border-radius:11px;background:#eeebff;color:#6753cf;font-size:9px;font-weight:900}.city-shortlist-list h3{font-size:13px}.city-shortlist-list article>div>p{margin-top:3px;font-size:9px}.city-shortlist-list .uni-social-proof{margin-top:8px}
 .city-shortlist-modal>footer{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 22px;border-top:1px solid #e9e9f1;background:#fff}.city-shortlist-modal>footer small{color:#8a91a3;font-size:8px}.city-shortlist-modal>footer .button{width:auto;margin:0;padding:9px 13px;font-size:9px}
-=======
->>>>>>> origin/main
 .profile-editor-backdrop{position:fixed;z-index:40;inset:0;padding:24px;display:grid;place-items:center;background:rgba(27,28,52,.52);backdrop-filter:blur(7px)}
 .profile-editor{width:min(720px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#fff;border-radius:25px;padding:27px;box-shadow:0 30px 90px rgba(24,26,55,.3)}
 .profile-editor>header{display:flex;justify-content:space-between;gap:20px;padding-bottom:20px;border-bottom:1px solid #e9eaf1}.profile-editor>header h2{font-size:30px}.profile-editor>header p{font-size:12px;margin-top:6px}.profile-editor>header button{width:37px;height:37px;border-radius:50%;background:#f0edff;color:#6552d0;font-size:24px;flex:none}
@@ -290,9 +287,6 @@
   .footer-partner { padding-left: 20px; }
   .footer-contact { text-align: left; }
   .footer-place { margin-top: 23px; padding-top: 15px; }
-<<<<<<< HEAD
   .city-shortlist-backdrop{align-items:end;padding:0}.city-shortlist-modal{width:100%;max-height:86vh;border-radius:22px 22px 0 0}.city-shortlist-modal>header{padding:20px 17px 16px}.city-shortlist-list{padding:13px}.city-shortlist-list>article{grid-template-columns:32px minmax(0,1fr) 35px;padding:11px;gap:9px}.shortlist-number{width:31px;height:31px}.city-shortlist-modal>footer{padding:13px}
-=======
->>>>>>> origin/main
   .profile-editor-backdrop{padding:0}.profile-editor{max-height:100vh;border-radius:0;min-height:100vh;padding:21px 16px}.profile-editor-fields{grid-template-columns:1fr}.profile-editor-fields label.wide{grid-column:auto}.profile-editor>footer{position:sticky;bottom:-21px;background:#fff;margin:0 -16px -21px;padding:14px 16px}.profile-editor>footer .button{flex:1}
 }

@@ -28,3 +28,25 @@
 .footer-brand .lang-switch{margin-top:14px}
 .profile-actions .lang-switch{margin-right:4px}
 @media(max-width:700px){.auth-screen>.lang-switch{top:10px;right:10px}.lang-switch button{padding:5px 9px;font-size:11px}}
+
+/* Центр уведомлений в шапке. */
+.notices{position:relative}
+.top-actions .bell{position:relative;width:43px;height:43px;border-radius:14px;border:1px solid var(--line);background:#fff;color:#5b6074;font-size:17px;display:grid;place-items:center}
+.top-actions .bell:hover{border-color:var(--purple);color:var(--purple)}
+.top-actions .bell>i{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#e2564f;color:#fff;font-size:10px;font-style:normal;font-weight:800;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
+.notices-panel{position:absolute;top:52px;right:0;width:min(370px,calc(100vw - 32px));z-index:30;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(30,32,68,.18);overflow:hidden}
+.notices-panel>header{padding:15px 17px 12px;border-bottom:1px solid var(--line)}
+.notices-panel>header b{display:block;font-size:14px}
+.notices-panel>header small{display:block;margin-top:3px;font-size:10px;color:var(--muted)}
+.notices-list{max-height:370px;overflow-y:auto;padding:8px}
+.notice{display:flex;gap:11px;width:100%;text-align:left;padding:11px;border-radius:13px;background:none;border:0;cursor:pointer}
+.notice:hover{background:#f6f5fb}
+.notice>i{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:9px;font-style:normal;font-size:12px;font-weight:800;background:#eef0f5;color:#7b8199}
+.notice.urgent>i{background:#fdeaee;color:#c0485a}
+.notice.soon>i{background:#fdf1dc;color:#9c6c22}
+.notice b{display:block;font-size:12px;line-height:1.35}
+.notice small{display:block;margin-top:3px;font-size:10px;line-height:1.5;color:var(--muted)}
+.notice .demo-badge{margin-top:5px}
+.notices-empty{padding:26px 17px;text-align:center;font-size:12px;color:var(--muted)}
+.notices-panel>footer{padding:11px 17px;border-top:1px solid var(--line);background:#fafafd;font-size:9px;line-height:1.5;color:var(--muted)}
+@media(max-width:700px){.notices-panel{right:-60px;width:min(340px,calc(100vw - 24px))}}

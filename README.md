@@ -53,6 +53,18 @@ language to answer in, so the diagnosis, the match explanations, the plan and Le
 in the interface language. City and university names stay in their Latin form on purpose —
 that is what a student has to type into a search box.
 
+## The team
+
+| | Role |
+|---|---|
+| **Дугашев Айсар** | Team lead — repository, interface, product direction |
+| **Оралхан Нурланды** | Task progress, XP and the daily streak: server-side calculation, calendar, path screen |
+| **Кензин Эльмир** | Country map and city photos, profile forms, exam entry and validation |
+| **Игорь Пак** | Data architecture, model integration, security and profile privacy |
+
+134 Lyceum, Almaty, with support from FIZTEX. Every contribution is visible in the commit
+history.
+
 ## The path a user walks
 
 | Stage | Where it lives |
@@ -64,6 +76,10 @@ that is what a student has to type into a search box.
 | 5. Comparison | pick 2–3 and compare on English, tuition, rounds, documents |
 | 6. Roadmap | **My path** — ordered tasks with subtasks |
 | 7. Next step | the first open task is the current one; quests are ticked one at a time, which earns XP and lights the daily streak |
+
+Alongside that path: **readiness** on every recommendation, **cost and funding** per
+country, a **motivation letter workshop**, **where to take part** suggestions, and a
+**notification centre**. Each is described below.
 
 **Decision map** shows how the plan was derived: profile and sources feed requirements, which
 feed the tasks. **Universities** is the world map — click a highlighted country to zoom in to
@@ -98,6 +114,53 @@ Nothing in the curated layer carries money or dates. If you add a field there, i
 
 ---
 
+## Test scenario
+
+A reviewer can walk the whole product in about five minutes:
+
+1. Create an account — username and password, no email. Pick the interface language in the
+   top-right corner first if you want the rest in Russian or Kazakh.
+2. Onboarding: pick **two or three countries** (this is the thing to try — the shortlist
+   interleaves between them), a degree level, a field, an intake year and an English level.
+3. The plan builds from your answers. Home now names your countries and your first task.
+4. **My matches** — the diagnosis in plain words, then universities with a reason each, a
+   **readiness** meter you can expand, an official-site link, and the cost and funding
+   section below. Pick two and press Compare.
+5. **My path** — tick one quest. XP is credited, the flame lights, the celebration fires
+   once, and the next stage opens.
+6. **Decision map** — press *Generate graph* with your own wording, in any language. Open
+   the *Official sources* node: those links are the shortlisted universities' own sites.
+7. **My profile → Motivation letter** — Leo returns a structure and questions, and will
+   comment on your activities if you press the button that says it sends them.
+8. The **bell** in the header lists what actually needs you.
+
+To see the AI degrade safely, remove `GEMINI_API_KEY` from `.env` and restart: every screen
+still works, and `plan.source` says `rules` instead of `gemini`.
+
+## Features built on the model
+
+- **Readiness** (`src/services/readiness.js`) — five checks per university: field taught,
+  level offered, language of instruction, English certificate against the usual bar, exam
+  results on file. It is **counted, not predicted**, and the model is never asked for it.
+  Field and level are disqualifying rather than scored. There is no percentage anywhere, and
+  a test asserts the payload contains no percent sign.
+- **Cost and funding** (`src/data/scholarships.js`) — tuition from the demonstration layer,
+  and who administers funding per destination. Every URL was fetched and its page title read
+  back before it was written down; two programmes are listed without a link because their
+  sites would not answer. No amounts, no deadlines, no eligibility.
+- **Motivation letter** (`server/essay.js`) — Leo returns the shape of the letter and the
+  questions only the applicant can answer, and turns their listed activities into what a
+  reader can fairly conclude. **It does not write the letter**: an essay an admissions
+  officer can tell was generated is worse than a plain one, and a pasted paragraph is a
+  statement about someone they did not make. The draft never leaves the browser.
+- **Where to take part** (`server/opportunities.js`) — competitions, projects and programmes
+  relevant to the field, with no dates, fees or eligibility rules.
+- **Notifications** (`server/notices.js`) — built only from dates the applicant entered and
+  their own progress: a booked exam approaching, one whose date has passed with no result, a
+  stage that has not moved, a streak ending tonight. **We hold no verified application
+  deadlines, so we never invent one to remind anyone about**; the one procedural item says
+  "usually" and carries the demo badge.
+
 ## How the AI is used
 
 Every model call goes through `server/gemini.js`, which walks a cascade of models because the
@@ -124,6 +187,36 @@ ids and contacts never reach a prompt.
 
 ---
 
+## What we did not build ourselves
+
+- **Google Gemini** — plan generation, diagnosis, match explanations, Leo, essay planning and
+  opportunity suggestions. Free tier, server-side only.
+- **React 19, Vite, Motion** — interface, animation.
+- **@xyflow/react** — the Decision map graph canvas.
+- **Natural Earth** (public domain) — country outlines for the map.
+- **Hipolabs universities dataset** (open) — the 10,259-institution breadth layer.
+- **Wikipedia API** — city photographs, fetched at runtime and credited in the corner.
+- **node-postgres** — the only runtime dependency on the server side.
+
+Everything else is ours: the curated catalogue, the shortlist and interleaving, the plan
+shape and graph layout, readiness, authentication, field encryption, the streak and XP
+calculation, the translations, and all 174 tests.
+
+## Limitations, stated plainly
+
+- **Entry requirements, tuition, rounds and documents are demonstration data.** Every one is
+  marked `evidence: 'demo'` and badged on screen. The pipeline that would replace them with
+  sourced, reviewed facts is designed (`docs/DATABASE_ARCHITECTURE.md`) and not built.
+- **There is no admission probability**, and there will not be one until real entry scores
+  and intake statistics exist behind it.
+- **The curated layer covers 10 countries and 187 universities.** The open catalogue is
+  breadth only — names and countries, never recommendations.
+- **185 of 187 universities have a confirmed website.** Two could not be checked and say so.
+- **Saved universities and friends live in the browser**, not the database.
+- **A plan is stored in the language it was generated in**; switching language regenerates
+  the diagnosis but not an existing plan.
+- **The Kazakh translation has not been read by a native speaker yet.**
+
 ## Security
 
 - Passwords are **hashed, not encrypted** — scrypt, with the cost parameters inside the digest
@@ -143,11 +236,12 @@ ids and contacts never reach a prompt.
 ## Tests
 
 ```bash
-npm test        # 167 tests, no network, under a second
+npm test        # 174 tests, no network, under a second
 npm run test:live   # adds real Gemini calls and a live HTTP server (spends quota)
 ```
 
-`node --test`, no framework. `tests/data.test.js` and `tests/plan.test.js` are offline;
+`node --test`, no framework, no dependency. `tests/data.test.js`, `tests/plan.test.js` and
+`tests/readiness.test.js` are offline;
 `tests/auth.test.js`, `tests/profiles.test.js`, `tests/chat.test.js` and
 `tests/tests-step.test.js` skip themselves when Postgres is down; `tests/api.test.js` skips
 without a key. Browser coverage is driven ad hoc with puppeteer and is not committed.

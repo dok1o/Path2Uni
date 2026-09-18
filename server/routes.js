@@ -13,6 +13,7 @@ import { getTests, saveTests } from './tests.js'
 import { getActivity, setSubtaskProgress } from './activity.js'
 import { suggestOpportunities } from './opportunities.js'
 import { planEssay } from './essay.js'
+import { buildNotices } from './notices.js'
 import { diagnose, explainMatches, adviceFingerprint, readCachedAdvice, writeCachedAdvice } from './advisor.js'
 import { shortlistUniversities } from '../src/data/worldUniversities.js'
 import { scholarshipsFor } from '../src/data/scholarships.js'
@@ -179,6 +180,10 @@ export async function route(request) {
     // different rhythm: the plan is regenerated rarely, this moves every time a quest is ticked.
     // POST, not GET: the body may carry what the applicant wrote about themselves, and that
     // does not belong in a URL, a proxy log or a browser history entry.
+    if (path === '/api/me/notices' && method === 'GET') {
+      return json(200, await buildNotices(me.id))
+    }
+
     if (path === '/api/me/essay' && method === 'POST') {
       const profile = await getProfile(me.id)
       if (!profile) return json(409, { error: 'Complete your profile first' })

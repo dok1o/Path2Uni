@@ -14,7 +14,7 @@ import { countryCatalog, getCountryMap, MAP_VIEWBOX } from './data/countryMaps.j
 import { cityLife, loadCityLife } from './data/cityLife.js'
 import { loadApplicantProfile, saveApplicantTests } from './services/applicantProfile.js'
 const icons = {
-  home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '♢',
+  home: '⌂', path: '⌁', search: '◌', uni: '⌘', friends: '♧', profile: '◉', bell: '◔',
   chevron: '›', check: '✓', lock: '•', arrow: '→', spark: '✦', book: '▤', target: '◎',
 }
 
@@ -104,6 +104,61 @@ const friendProfiles = [
   { id:'noah', nickname:'@noahbuilds', name:'Noah', initials:'N', className:'a3', university:'Politecnico di Milano' },
   { id:'sofia', nickname:'@sofia.italia', name:'Sofia', initials:'S', className:'a4', university:'Sapienza University' },
 ]
+
+const NOTICE_MARK = { urgent: '!', soon: '◷', info: '·' }
+
+/**
+ * The bell. It only ever counts things the applicant can act on today — an `info` notice is
+ * shown but never badged, because a permanent red dot teaches people to ignore red dots.
+ */
+function Notices({ onGo }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const [state, setState] = useState({ notices: [], unread: 0 })
+  const box = useRef(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = () => fetch('/api/me/notices')
+      .then(response => (response.ok ? response.json() : null))
+      .then(payload => { if (alive && payload) setState(payload) })
+      .catch(() => {})
+    load()
+    // Nothing here changes by the second; a slow poll keeps it fresh across a long session.
+    const timer = window.setInterval(load, 120_000)
+    return () => { alive = false; window.clearInterval(timer) }
+  }, [])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const close = event => { if (!box.current?.contains(event.target)) setOpen(false) }
+    const escape = event => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape) }
+  }, [open])
+
+  return <div className="notices" ref={box}>
+    <button className="bell" onClick={() => setOpen(value => !value)} aria-expanded={open}
+      aria-label={t('{count} things need you', { count: state.unread })}>
+      {icons.bell}{state.unread > 0 && <i>{state.unread}</i>}
+    </button>
+    {open && <section className="notices-panel" role="dialog" aria-label={t('Notifications')}>
+      <header><b>{t('Notifications')}</b><small>{t('Built from dates you entered and your own progress.')}</small></header>
+      {state.notices.length ? <div className="notices-list">{state.notices.map(notice =>
+        <button key={notice.key} className={`notice ${notice.tone}`} onClick={() => { setOpen(false); onGo(notice.page) }}>
+          <i>{NOTICE_MARK[notice.tone]}</i>
+          <span>
+            <b>{t(notice.title, notice.vars)}</b>
+            <small>{t(notice.detail, notice.detailVars)}</small>
+            {notice.evidence === 'demo' && <em className="demo-badge compact"><i>!</i>{t('demo')}</em>}
+          </span>
+        </button>)}</div>
+        : <p className="notices-empty">{t('Nothing needs you right now.')}</p>}
+      <footer>{t('We do not hold verified application deadlines, so we never invent one to remind you about.')}</footer>
+    </section>}
+  </div>
+}
 
 function NavItem({ item, active, onClick }) {
   const { t } = useT()
@@ -742,4 +797,4 @@ export default function App() {
   const firstName = (user.displayName || user.username).trim().split(/\s+/)[0]
   const initial = firstName.charAt(0).toUpperCase()
   const body = page === 'advisor' ? <Advisor profile={profile} onCompare={setComparing} onOpenPlan={() => setPage('roadmap')}/> : page === 'home' ? <Dashboard setChatOpen={setChatOpen} setPage={setPage} name={firstName} plan={admissionPlan} profile={profile} tests={applicantProfile.tests} friends={friends}/> : page === 'roadmap' ? <GamePath setChatOpen={setChatOpen} plan={admissionPlan} onOpenOSINT={openOSINT} onTaskDone={setTaskDone} onCompleteQuest={completeQuest} activity={activity}/> : page === 'profile' ? <ProfileV2 favorites={favorites} setPage={setPage} onToggleFavorite={toggleFavorite} friends={friends} onLogout={logOut} user={user} profile={profile} applicantProfile={applicantProfile} onOpenExamStep={() => setExamStepOpen(true)} onEditProfile={() => setEditingProfile(true)}/> : page === 'intel' ? <OSINTFlow setPage={setPage} plan={admissionPlan} onGenerate={handleGeneratePlan} focusedNodeId={focusedNodeId} profile={profile}/> : page === 'universities' ? <UniversityExplorer favorites={favorites} onToggleFavorite={toggleFavorite} friends={friends}/> : <Friends friends={friends} onAddFriend={addFriend}/>
-  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{initial}</span><span><b>{user.displayName || user.username}</b><small>{t('My profile')}</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ {n(activity?.xp?.earned ?? 0)} XP</button><StreakWidget streak={activity?.streak} today={activity?.today}/><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><SiteFooter onNavigate={setPage}/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label={t('Open Leo AI')}><img src={mascot} alt=""/><span>{t('Ask Leo')} <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label={t('Close Leo AI')}/>}{comparing && <Comparison items={comparing} onClose={() => setComparing(null)}/>}<AnimatePresence>{celebration && <StreakCelebration streak={celebration.streak} awardedXp={celebration.awardedXp} onClose={() => setCelebration(null)}/>}</AnimatePresence>{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>}
+  return <div className="app-shell"><aside className="sidebar"><button className="brand" onClick={() => setPage('home')}><span className="brand-mark">P</span><span>path<span>2</span>uni</span></button><nav>{nav.map(item=><NavItem key={item.id} item={item} active={page===item.id || (page==='roadmap' && item.id==='roadmap')} onClick={() => { if (item.id === 'intel') setFocusedNodeId(null); setPage(item.id) }}/>)}</nav><div className="sidebar-bottom"><button className="profile-mini" onClick={() => setPage('profile')}><span className="user-pic">{initial}</span><span><b>{user.displayName || user.username}</b><small>{t('My profile')}</small></span><i>{icons.chevron}</i></button></div></aside><header className="topbar"><button className="mobile-brand brand" onClick={() => setPage('home')}><span className="brand-mark">P</span>path<span>2</span>uni</button><div className="top-actions"><button className="xp-pill">✦ {n(activity?.xp?.earned ?? 0)} XP</button><StreakWidget streak={activity?.streak} today={activity?.today}/><Notices onGo={setPage}/><button className="mobile-menu" onClick={() => setChatOpen(true)}>☰</button></div></header><AnimatePresence mode="wait"><motion.div key={page} className="page-transition" initial={{opacity:0,y:14,filter:'blur(5px)'}} animate={{opacity:1,y:0,filter:'blur(0px)'}} exit={{opacity:0,y:-8,filter:'blur(3px)'}} transition={{duration:.28,ease:[.22,1,.36,1]}}>{body}</motion.div></AnimatePresence><SiteFooter onNavigate={setPage}/><motion.button whileHover={{scale:1.06,y:-3}} whileTap={{scale:.93}} className="leo-fab" onClick={() => setChatOpen(true)} aria-label={t('Open Leo AI')}><img src={mascot} alt=""/><span>{t('Ask Leo')} <b>✦</b></span></motion.button><Chat open={chatOpen} onClose={() => setChatOpen(false)} name={firstName} hasPlan={Boolean(admissionPlan)}/>{chatOpen && <button className="overlay" onClick={() => setChatOpen(false)} aria-label={t('Close Leo AI')}/>}{comparing && <Comparison items={comparing} onClose={() => setComparing(null)}/>}<AnimatePresence>{celebration && <StreakCelebration streak={celebration.streak} awardedXp={celebration.awardedXp} onClose={() => setCelebration(null)}/>}</AnimatePresence>{examStepOpen && <ExamResultsStep initialTests={applicantProfile.tests} onSave={saveTests} onClose={() => setExamStepOpen(false)}/>}</div>}

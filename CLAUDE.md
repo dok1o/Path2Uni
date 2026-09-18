@@ -10,7 +10,7 @@ npm run dev          # Vite dev server — also mounts the plan API at /api/ai/a
 npm run build        # production build into dist/ (gitignored — npm run server needs it built first)
 npm run preview      # serve the built bundle
 npm run server       # serves dist/ AND the API on :8787 — one origin, which is what cookie auth needs
-npm test             # 167 tests, no network (database tests skip themselves without Postgres)
+npm test             # 174 tests, no network (database tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
@@ -113,6 +113,16 @@ Russian, Kazakh and English, switchable anywhere, remembered per browser in `pat
 - **The model is told which language to answer in** (`languageRule()` in [server/gemini.js](server/gemini.js)), for the plan, the diagnosis, the match explanations and Leo. University, exam and portal names stay as given — a translated name cannot be searched for.
 - **`adviceFingerprint` includes the language**, so switching regenerates the diagnosis instead of serving the previous language back. A *plan* is stored in the language it was generated in and changes only when regenerated.
 - **What is deliberately not translated:** city names (a student searching for "Milan" needs the Latin form), university names, and the rule-based fallback text that only appears when Gemini is unreachable.
+
+## Advice features, and the line each one holds
+
+Five things sit on top of the plan. What unites them is what each refuses to say:
+
+- **Readiness** ([src/services/readiness.js](src/services/readiness.js)) counts five known requirements per university and is **never asked of the model** — the prompts forbid stating chances, so the app must not launder one through a different route. Field and level are disqualifying, not scored: a university missing your subject scored 4/5 and read as a fit until a test caught it. `tests/readiness.test.js` asserts the payload contains no `%` at all.
+- **Funding** ([src/data/scholarships.js](src/data/scholarships.js)) carries links that were fetched and title-checked, the same rule as the university addresses. Two entries have no link because their sites refuse a non-browser request; a guess would cost someone a cycle. No amounts, deadlines or eligibility.
+- **The essay workshop** ([server/essay.js](server/essay.js)) must not produce text the applicant can paste. The draft stays in `localStorage` because [database/README.md](database/README.md) rules essays out of both databases, and the activities text is sent only on an explicit press, over POST so nothing personal lands in a URL or a log.
+- **Opportunities** ([server/opportunities.js](server/opportunities.js)) may name only programmes that still run. A first version suggested Google Code Jam, closed since 2023 — the prompt now prefers describing a category over naming the wrong thing, and the panel says to check it exists.
+- **Notices** ([server/notices.js](server/notices.js)) are built from dates the applicant typed and their own progress. **Never an application deadline**: those live in the demo layer, and waking someone for an invented date is worse than silence because they act on it. The one procedural notice says "usually" and is badged `demo`. `info` notices are shown but never badged on the bell — a permanent red dot teaches people to ignore red dots.
 
 ## Accounts
 

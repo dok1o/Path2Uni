@@ -369,10 +369,36 @@ const profileEditorFields = {
   strengths:{title:'Your strengths',subtitle:'Activities, awards and portfolio',fields:[['activities','Activities','textarea'],['awards','Awards and achievements','textarea'],['skills','Skills','textarea'],['portfolio','Portfolio link','url'],['budget','Annual budget (EUR)','number']]},
 }
 
+const KIND_ICON = { competition: '♜', project: '✦', volunteering: '♧', research: '◎', course: '▤', community: '☕' }
+
+function OpportunityHints() {
+  const { t, lang } = useT()
+  const [state, setState] = useState({ loading: true })
+  useEffect(() => {
+    let alive = true
+    fetch(`/api/me/opportunities?lang=${lang}`)
+      .then(response => (response.ok ? response.json() : Promise.reject()))
+      .then(payload => { if (alive) setState({ loading: false, ...payload }) })
+      .catch(() => { if (alive) setState({ loading: false, ideas: [] }) })
+    return () => { alive = false }
+  }, [lang])
+
+  if (state.loading) return <div className="hint-panel loading"><span className="map-spinner"/>{t('Leo is looking for places you could take part…')}</div>
+  if (!state.ideas?.length) return null
+  return <div className="hint-panel">
+    <div className="hint-head"><img src={mascot} alt=""/><div><b>{t('Where you could take part')}</b><small>{t('Chosen for your field and level. Check on the organiser’s own page that it still runs, and what the dates and rules are — we do not hold them.')}</small></div></div>
+    <div className="hint-list">{state.ideas.map(idea => <article key={idea.title}>
+      <i>{KIND_ICON[idea.kind] ?? '✦'}</i>
+      <div><h4>{idea.title}</h4><p>{idea.why}</p>{idea.start && <p className="hint-start"><b>{t('First move')}:</b> {idea.start}</p>}</div>
+    </article>)}</div>
+  </div>
+}
+
 function ProfileEditor({ section, values, onSave, onClose }) {
+  const { t } = useT()
   const config=profileEditorFields[section]
   const [draft,setDraft]=useState(values)
-  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">PROFILE DETAILS</span><h2>{config.title}</h2><p>{config.subtitle}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header><div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{label}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={`Add ${label.toLowerCase()}`}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>Cancel</button><button className="button primary" type="submit">Save changes <span>✓</span></button></footer></motion.form></div>
+  return <div className="profile-editor-backdrop" onMouseDown={event => event.target===event.currentTarget && onClose()}><motion.form className="profile-editor" onSubmit={event => { event.preventDefault(); onSave(draft) }} initial={{opacity:0,y:20,scale:.98}} animate={{opacity:1,y:0,scale:1}} role="dialog" aria-modal="true"><header><div><span className="eyebrow purple">{t('PROFILE DETAILS')}</span><h2>{t(config.title)}</h2><p>{t(config.subtitle)}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>{section === 'strengths' && <OpportunityHints/>}<div className="profile-editor-fields">{config.fields.map(([key,label,type]) => <label key={key} className={type==='textarea'?'wide':''}><span>{t(label)}</span>{type==='textarea'?<textarea value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})} placeholder={t('Add {field}', { field: t(label).toLowerCase() })}/>:<input type={type} value={draft[key]} onChange={event=>setDraft({...draft,[key]:event.target.value})}/>}</label>)}</div><footer><button type="button" className="button soft" onClick={onClose}>{t('Cancel')}</button><button className="button primary" type="submit">{t('Save changes')} <span>✓</span></button></footer></motion.form></div>
 }
 
 function ProfileV2({ favorites, setPage, onToggleFavorite, friends, onLogout, user, profile, applicantProfile, onOpenExamStep, onEditProfile }) {

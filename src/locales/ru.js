@@ -411,4 +411,32 @@ export const RU = {
   'Everyday life': 'Повседневность',
   'Student districts sit near the campuses: cheaper rent, canteens, late libraries. Ask the student union which streets before signing anything.': 'Студенческие районы расположены рядом с кампусами: аренда дешевле, столовые, библиотеки допоздна. Спросите у студсоюза, какие именно улицы, прежде чем что-то подписывать.',
   'Official site': 'Официальный сайт',
+
+  // --- funding
+  'COST AND FUNDING': 'СТОИМОСТЬ И ФИНАНСИРОВАНИЕ',
+  'What it costs, and who pays for it': 'Сколько это стоит и кто это оплачивает',
+  'Tuition below is demonstration data. The funding bodies are not — every link was checked before it was written down.': 'Стоимость ниже — демонстрационные данные. Организации, выдающие финансирование, — нет: каждая ссылка проверена перед тем, как была записана.',
+  'No tuition figure on file': 'Данных о стоимости нет',
+  'search for the official page yourself': 'официальную страницу найдите сами',
+  'National academic exchange service': 'Национальная служба академических обменов',
+  'EU programme': 'Программа ЕС',
+  'Government programme': 'Государственная программа',
+  'National information portal': 'Национальный информационный портал',
+  'Government information portal': 'Государственный информационный портал',
+  'State Department advising network': 'Консультационная сеть Госдепартамента США',
+  'Government agency': 'Государственное агентство',
+  'Government portal': 'Государственный портал',
+  'UK government programme': 'Государственная программа Великобритании',
+  'University': 'Университет',
+  'Your university’s own international scholarships': 'Собственные стипендии вашего университета для иностранцев',
+  'Your university’s international office': 'Международный отдел вашего университета',
+
+  // --- opportunities
+  'PROFILE DETAILS': 'ДАННЫЕ ПРОФИЛЯ',
+  'Add {field}': 'Добавьте {field}',
+  'Leo is looking for places you could take part…': 'Лео ищет, где вы могли бы поучаствовать…',
+  'Where you could take part': 'Где вы могли бы поучаствовать',
+  'Chosen for your field and level. Check on the organiser’s own page that it still runs, and what the dates and rules are — we do not hold them.': 'Подобрано под ваше направление и ступень. На странице организатора проверьте, что программа ещё проводится, а также даты и условия — у нас их нет.',
+  'First move': 'С чего начать',
+  'Tell us where and what you want to study': 'Расскажите, где и что хотите изучать',
 }

@@ -411,4 +411,32 @@ export const KK = {
   'Everyday life': 'Күнделікті өмір',
   'Student districts sit near the campuses: cheaper rent, canteens, late libraries. Ask the student union which streets before signing anything.': 'Студенттік аудандар кампустардың жанында: жалдау арзан, асханалар, кеш жабылатын кітапханалар. Бірдеңеге қол қоймас бұрын студенттік одақтан қай көшелер екенін сұраңыз.',
   'Official site': 'Ресми сайт',
+
+  // --- funding
+  'COST AND FUNDING': 'ҚҰНЫ ЖӘНЕ ҚАРЖЫЛАНДЫРУ',
+  'What it costs, and who pays for it': 'Қанша тұрады және оны кім төлейді',
+  'Tuition below is demonstration data. The funding bodies are not — every link was checked before it was written down.': 'Төмендегі оқу ақысы — демонстрациялық дерек. Қаржыландыратын ұйымдар олай емес: әр сілтеме жазылмас бұрын тексерілген.',
+  'No tuition figure on file': 'Оқу ақысы туралы дерек жоқ',
+  'search for the official page yourself': 'ресми бетті өзіңіз іздеңіз',
+  'National academic exchange service': 'Ұлттық академиялық алмасу қызметі',
+  'EU programme': 'ЕО бағдарламасы',
+  'Government programme': 'Мемлекеттік бағдарлама',
+  'National information portal': 'Ұлттық ақпараттық портал',
+  'Government information portal': 'Мемлекеттік ақпараттық портал',
+  'State Department advising network': 'АҚШ Мемдепартаментінің кеңес беру желісі',
+  'Government agency': 'Мемлекеттік агенттік',
+  'Government portal': 'Мемлекеттік портал',
+  'UK government programme': 'Ұлыбритания мемлекеттік бағдарламасы',
+  'University': 'Университет',
+  'Your university’s own international scholarships': 'Университетіңіздің шетелдіктерге арналған өз стипендиялары',
+  'Your university’s international office': 'Университетіңіздің халықаралық бөлімі',
+
+  // --- opportunities
+  'PROFILE DETAILS': 'ПРОФИЛЬ ДЕРЕКТЕРІ',
+  'Add {field}': '{field} қосыңыз',
+  'Leo is looking for places you could take part…': 'Лео сіз қатыса алатын орындарды іздеп жатыр…',
+  'Where you could take part': 'Сіз қайда қатыса аласыз',
+  'Chosen for your field and level. Check on the organiser’s own page that it still runs, and what the dates and rules are — we do not hold them.': 'Бағытыңыз бен деңгейіңізге қарай таңдалған. Ұйымдастырушының бетінен бағдарламаның әлі өтетінін, күндері мен шарттарын тексеріңіз — бізде олар жоқ.',
+  'First move': 'Неден бастау',
+  'Tell us where and what you want to study': 'Қайда және нені оқығыңыз келетінін айтыңыз',
 }

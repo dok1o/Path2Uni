@@ -25,6 +25,14 @@ const GAP_TONE = { clear: 'good', likely: 'good', just: 'warn', plan: 'warn', sh
 export default function Advisor({ profile, onCompare, onOpenPlan }) {
   const { t, n, lang } = useT()
   const [state, setState] = useState({ loading: true })
+  const [funding, setFunding] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/me/funding').then(response => (response.ok ? response.json() : null))
+      .then(payload => { if (alive && payload) setFunding(payload.countries) }).catch(() => {})
+    return () => { alive = false }
+  }, [profile.id])
 
   useEffect(() => {
     let alive = true
@@ -116,6 +124,26 @@ export default function Advisor({ profile, onCompare, onOpenPlan }) {
         </motion.article>
       })}</AnimatePresence>
     </div>
+
+    {funding?.length ? <section className="funding">
+      <div className="funding-head">
+        <span className="eyebrow purple">{t('COST AND FUNDING')}</span>
+        <h2>{t('What it costs, and who pays for it')}</h2>
+        <p>{t('Tuition below is demonstration data. The funding bodies are not — every link was checked before it was written down.')}</p>
+      </div>
+      <div className="funding-grid">{funding.map(country => <article key={country.iso}>
+        <h3>{t(country.label)}</h3>
+        {country.tuition
+          ? <p className="funding-cost">{money(country.tuition, t, n)} <DemoBadge compact/></p>
+          : <p className="funding-cost none">{t('No tuition figure on file')}</p>}
+        <ul className="funding-list">{country.scholarships.map(item => <li key={item.name}>
+          {item.url
+            ? <a href={item.url} target="_blank" rel="noreferrer">{item.name} ↗</a>
+            : <span>{item.name}</span>}
+          <small>{t(item.kind)}{item.url ? '' : ` · ${t('search for the official page yourself')}`}</small>
+        </li>)}</ul>
+      </article>)}</div>
+    </section> : null}
 
     <footer className="advisor-foot">
       <DemoBadge/>

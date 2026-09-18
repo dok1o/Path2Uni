@@ -11,8 +11,11 @@ import {
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
 import { getActivity, setSubtaskProgress } from './activity.js'
+import { suggestOpportunities } from './opportunities.js'
 import { diagnose, explainMatches, adviceFingerprint, readCachedAdvice, writeCachedAdvice } from './advisor.js'
 import { shortlistUniversities } from '../src/data/worldUniversities.js'
+import { scholarshipsFor } from '../src/data/scholarships.js'
+import { requirementsFor } from '../src/data/admissionDemo.js'
 import { buildGraph } from '../src/services/planShape.js'
 import { readObjective, fields as FIELD_VOCAB } from '../src/services/planContext.js'
 
@@ -173,6 +176,26 @@ export async function route(request) {
 
     // The streak and the per-quest XP. Read separately from the plan because it changes on a
     // different rhythm: the plan is regenerated rarely, this moves every time a quest is ticked.
+    if (path === '/api/me/opportunities' && method === 'GET') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      return json(200, await suggestOpportunities({ apiKey, profile, lang: readLang(query, parsed) }))
+    }
+
+    if (path === '/api/me/funding' && method === 'GET') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      const countries = profile.destinations?.length ? profile.destinations : [profile.destination]
+      return json(200, {
+        countries: countries.filter(Boolean).map((iso, index) => ({
+          iso,
+          label: profile.destinationLabels?.[index] ?? iso,
+          tuition: requirementsFor({ country: iso, id: null })?.tuition ?? null,
+          scholarships: scholarshipsFor(iso),
+        })),
+      })
+    }
+
     if (path === '/api/me/activity' && method === 'GET') {
       return json(200, await getActivity(me.id))
     }

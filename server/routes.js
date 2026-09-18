@@ -10,8 +10,10 @@ import {
 } from './profiles.js'
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
+import { diagnose, explainMatches } from './advisor.js'
+import { shortlistUniversities } from '../src/data/worldUniversities.js'
 import { buildGraph } from '../src/services/planShape.js'
-import { readObjective } from '../src/services/planContext.js'
+import { readObjective, fields as FIELD_VOCAB } from '../src/services/planContext.js'
 
 const COOKIE = 'p2u_session'
 
@@ -112,6 +114,26 @@ export async function route(request) {
       const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
       await savePlan(me.id, { plan, objective })
       return json(200, { plan: { ...plan, objective } })
+    }
+
+    // Stage 3 and 4 of the product path: the profile read back, and why each match suits.
+    if (path === '/api/me/diagnosis' && method === 'GET') {
+      const profile = await getProfile(me.id)
+      if (!profile) return json(409, { error: 'Complete your profile first' })
+      const tests = await getTests(me.id)
+      const plan = await getCurrentPlan(me.id)
+      // The field is a hard filter. Without it the shortlist returns any university in the
+      // country, and the explanation then has to justify a match that does not exist.
+      const fieldTag = Object.values(FIELD_VOCAB).find(item => item.label === profile.field)?.tag ?? null
+      const shortlist = plan?.shortlist?.length ? plan.shortlist : shortlistUniversities({
+        country: profile.destination, field: fieldTag,
+        level: String(profile.degree).toLowerCase(), limit: 5,
+      })
+      const [diagnosis, matches] = await Promise.all([
+        diagnose({ apiKey, profile, tests }),
+        explainMatches({ apiKey, profile, tests, shortlist }),
+      ])
+      return json(200, { diagnosis, matches })
     }
 
     if (path === '/api/me/tests' && method === 'GET') {

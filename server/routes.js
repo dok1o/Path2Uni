@@ -5,7 +5,7 @@ import { register, login, logout, userForToken } from './auth.js'
 import { isReachable } from './db.js'
 import { createAdmissionPlan, handlePlanRequest } from './plan.js'
 import {
-  getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan, setTaskDone,
+  getProfile, saveProfile, profileForPlanning, savePlan, getCurrentPlan, setTaskDone, MAX_DESTINATIONS,
   destinationOptions, fieldOptions, levelOptions, englishLevels,
 } from './profiles.js'
 import { askLeo } from './chat.js'
@@ -39,7 +39,7 @@ const HSTS = { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains
 // back from the database gets its graph rebuilt here — the database never holds layout.
 function rehydrate(stored, profile) {
   const context = readObjective(stored.objective, profileForPlanning(profile))
-  return { ...stored, status: 'generated', generatedAt: stored.createdAt, graph: buildGraph(context, stored.tasks) }
+  return { ...stored, status: 'generated', generatedAt: stored.createdAt, graph: buildGraph(context, stored.tasks, stored.shortlist) }
 }
 
 const reply = (status, body, headers = {}) => ({ status, body, headers })
@@ -181,7 +181,7 @@ export async function route(request) {
     }
 
     if (path === '/api/options' && method === 'GET') {
-      return json(200, { destinations: destinationOptions, fields: fieldOptions, levels: levelOptions, englishLevels })
+      return json(200, { destinations: destinationOptions, fields: fieldOptions, levels: levelOptions, englishLevels, maxDestinations: MAX_DESTINATIONS })
     }
 
     // Kept for the signed-out/demo path: generates without storing anything.

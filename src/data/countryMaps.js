@@ -955,7 +955,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.polimi.it/"
           },
           {
             "id": "bocconi-university",
@@ -1009,7 +1009,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uniroma1.it/"
           },
           {
             "id": "luiss-guido-carli",
@@ -1031,7 +1031,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://web.uniroma2.it/"
           }
         ]
       },
@@ -1052,7 +1052,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.polito.it/"
           },
           {
             "id": "university-of-turin",
@@ -1095,7 +1095,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.polimoda.com/"
           }
         ]
       },
@@ -1127,7 +1127,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.sns.it/"
           }
         ]
       },
@@ -1357,7 +1357,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.hu-berlin.de/"
           },
           {
             "id": "free-university-of-berlin",
@@ -1368,7 +1368,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.fu-berlin.de/"
           },
           {
             "id": "technical-university-of-berlin",
@@ -1379,7 +1379,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.tu.berlin/"
           }
         ]
       },
@@ -1400,7 +1400,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.tum.de/"
           },
           {
             "id": "ludwig-maximilian-university-of-munich",
@@ -1411,7 +1411,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.lmu.de/"
           }
         ]
       },
@@ -1432,7 +1432,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uni-heidelberg.de/"
           }
         ]
       },
@@ -1453,7 +1453,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.rwth-aachen.de/"
           }
         ]
       },
@@ -1495,7 +1495,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uni-frankfurt.de/"
           }
         ]
       },
@@ -1537,7 +1537,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.kit.edu/"
           }
         ]
       },
@@ -1558,7 +1558,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uni-bonn.de/"
           }
         ]
       },
@@ -1579,7 +1579,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://uni-koeln.de/"
           }
         ]
       },
@@ -1600,7 +1600,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://uni-freiburg.de/"
           }
         ]
       },
@@ -1621,7 +1621,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uni-goettingen.de/"
           }
         ]
       },
@@ -1642,7 +1642,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://tu-dresden.de/"
           }
         ]
       },
@@ -1663,7 +1663,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.tu-darmstadt.de/"
           }
         ]
       },
@@ -1684,7 +1684,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://uni-tuebingen.de/"
           }
         ]
       },
@@ -1747,7 +1747,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.uni-muenster.de/"
           }
         ]
       }
@@ -2071,7 +2071,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.ehl.edu/"
           }
         ]
       },
@@ -2260,7 +2260,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.unine.ch/"
           }
         ]
       }
@@ -2290,7 +2290,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.elte.hu/"
           },
           {
             "id": "budapest-university-of-technology-and-economics",
@@ -2312,7 +2312,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://semmelweis.hu/"
           },
           {
             "id": "corvinus-university-of-budapest",
@@ -2345,7 +2345,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://mome.hu/"
           }
         ]
       },
@@ -2450,7 +2450,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://uni.sze.hu/"
           }
         ]
       }
@@ -2513,7 +2513,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://ev.buaa.edu.cn/"
           },
           {
             "id": "beijing-institute-of-technology",
@@ -2599,7 +2599,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://www.sustech.edu.cn/"
           },
           {
             "id": "shenzhen-university",
@@ -3055,7 +3055,7 @@ export const countryCatalog = [
               "master",
               "phd"
             ],
-            "web": null
+            "web": "https://aurak.ac.ae/"
           }
         ]
       },
@@ -3440,6 +3440,7 @@ export const countryCatalog = [
     ]
   }
 ]
+
 
 
 const mapCache = new Map()

@@ -3,11 +3,10 @@ import mascot from './assets/leo-mascot.png'
 
 const YEARS = Array.from({ length: 6 }, (_, index) => new Date().getFullYear() + index)
 
-const MAX_DESTINATIONS = 3
-
 const STEPS = [
   // The only multi-answer step: most applicants are choosing between countries, not from one.
-  { key: 'destinations', multi: true, title: 'Where do you want to study?', lead: `Pick up to ${MAX_DESTINATIONS}. Choosing more than one is normal — we will show you universities in each and let you compare them.` },
+  // Its limit comes from the server with the options, so the two can never drift apart.
+  { key: 'destinations', multi: true, title: 'Where do you want to study?', lead: max => `Pick up to ${max}. Choosing more than one is normal — we will show you universities in each and let you compare them.` },
   { key: 'degree', title: 'Which degree are you after?', lead: 'This decides which programmes we look at.' },
   { key: 'field', title: 'What do you want to study?', lead: 'Pick the closest one. Your shortlist comes from this.' },
   { key: 'intake', title: 'When do you want to start?', lead: 'The year you plan to begin your studies.' },
@@ -39,6 +38,7 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
 
   if (!options) return <div className="auth-booting"><span className="map-spinner"/>Getting things ready…</div>
 
+  const maxDestinations = options.maxDestinations ?? 3
   const current = STEPS[step]
   const chosen = answers[current.key]
   const isChosen = value => (current.multi ? (chosen ?? []).includes(value) : chosen === value)
@@ -57,8 +57,8 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
     setError(null)
     if (current.multi) {
       const list = chosen ?? []
-      if (!list.includes(value) && list.length >= MAX_DESTINATIONS) {
-        setError(`Three countries is the limit — past that it stops being a comparison.`)
+      if (!list.includes(value) && list.length >= maxDestinations) {
+        setError(`${maxDestinations} countries is the limit — past that it stops being a comparison.`)
         return
       }
       setAnswers({ ...answers, [current.key]: list.includes(value) ? list.filter(item => item !== value) : [...list, value] })
@@ -106,7 +106,7 @@ export default function Onboarding({ user, initial, onDone, onCancel }) {
       <div>
         <span className="eyebrow purple">{initial ? 'EDIT YOUR ANSWERS' : `HI ${(user.displayName || user.username).split(/\s+/)[0].toUpperCase()}`}</span>
         <h1>{current.title}</h1>
-        <p>{current.lead}</p>
+        <p>{typeof current.lead === 'function' ? current.lead(maxDestinations) : current.lead}</p>
       </div>
     </header>
 

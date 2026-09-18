@@ -36,13 +36,25 @@ export function normalizeTasks(rawTasks, { destination }) {
   }))
 }
 
-export function buildGraph(context, tasks) {
+/**
+ * How many pages this plan can actually point at: the official sites of the shortlisted
+ * universities, plus the national application portal. Every one of them is a link we hold,
+ * not a number someone typed. The previous count was a per-country literal — it claimed
+ * "12 verified pages" for a pipeline that has not verified anything yet.
+ */
+export function countSources(shortlist = []) {
+  return shortlist.filter(entry => entry?.website).length + 1
+}
+
+export function buildGraph(context, tasks, shortlist = []) {
   const { destination, field, degree, intake, englishLevel, needsTest } = context
+  const sources = countSources(shortlist)
   const nodes = [
-    { id: 'profile', type: 'profile', label: 'Your profile', meta: `${englishLevel} · GPA 4.4`, x: 12, y: 50, detail: 'The structured profile entered after registration. This becomes the context for every AI decision.' },
+    // No GPA: nothing in this app asks for one, and a number nobody entered is not their profile.
+    { id: 'profile', type: 'profile', label: 'Your profile', meta: `English ${englishLevel} · ${degree}`, x: 12, y: 50, detail: 'The answers you gave after registration. This is the context for every decision below.' },
     { id: 'goal', type: 'goal', label: `${destination.label} · ${intake}`, meta: `${degree} goal`, x: 32, y: 18, detail: `Target: ${field} in ${destination.label}, ${intake} intake.` },
-    { id: 'source', type: 'source', label: 'Official sources', meta: `${destination.sources} verified pages`, x: 32, y: 82, detail: `University pages, ${destination.portal} and official admission regulations. Every extracted fact keeps its source.` },
-    { id: 'requirement', type: 'requirement', label: 'Entry requirements', meta: needsTest ? 'IELTS · GPA · docs' : 'GPA · docs', x: 54, y: 30, detail: needsTest ? `Your ${englishLevel} English is below the usual bar, so a certificate is required before ${destination.portal} will accept the application.` : 'The AI converts sourced facts into explicit requirements and flags contradictions for review.' },
+    { id: 'source', type: 'source', portal: destination.portal, label: 'Official sources', meta: sources === 1 ? `${destination.portal}` : `${sources} official pages`, x: 32, y: 82, detail: `The official sites of the universities on your shortlist, plus ${destination.portal}. These are the pages to confirm every figure against — we link them, we have not read them for you.` },
+    { id: 'requirement', type: 'requirement', label: 'Entry requirements', meta: needsTest ? 'English · grades · documents' : 'grades · documents', x: 54, y: 30, detail: needsTest ? `Your ${englishLevel} English is below the usual bar, so a certificate is required before ${destination.portal} will accept the application.` : 'The AI converts sourced facts into explicit requirements and flags contradictions for review.' },
   ]
   // A node card is ~20% of the canvas wide and ~9% tall, so tasks keep a full card's gap
   // from the requirement column and from each other however many the plan returns.
@@ -65,8 +77,8 @@ export function assemblePlan({ context, tasks, confidence, source, shortlist = [
     status: 'generated',
     generatedAt: new Date().toISOString(),
     confidence,
-    sourceCount: context.destination.sources,
-    graph: buildGraph(context, tasks),
+    sourceCount: countSources(shortlist),
+    graph: buildGraph(context, tasks, shortlist),
     tasks,
     shortlist,
     source,

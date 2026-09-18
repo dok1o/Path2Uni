@@ -7,7 +7,7 @@ import { register } from '../server/auth.js'
 import { isEncrypted, decrypt } from '../server/crypto.js'
 import {
   validateProfile, getProfile, saveProfile, profileForPlanning,
-  savePlan, getCurrentPlan, destinationOptions, fieldOptions,
+  savePlan, getCurrentPlan, destinationOptions, fieldOptions, MAX_DESTINATIONS,
 } from '../server/profiles.js'
 import { route } from '../server/routes.js'
 import { curatedIsos, FIELDS } from '../src/data/worldUniversities.js'
@@ -110,7 +110,26 @@ test('one bad code in the list fails the whole list rather than being dropped', 
 
 test('an empty or oversized list is refused', () => {
   assert.ok(validateProfile({ ...VALID, destination: undefined, destinations: [] }).errors?.destination)
-  assert.ok(validateProfile({ ...VALID, destinations: ['de', 'nl', 'hu', 'it', 'pl'] }).errors?.destination)
+  assert.ok(validateProfile({ ...VALID, destinations: ['de', 'nl', 'hu', 'it'] }).errors?.destination)
+})
+
+test('the destination limit is one number, not three', async () => {
+  // It used to be 4 in the server, 3 in the onboarding and 4 in the CHECK constraint. The
+  // client now reads it from /api/options and 011 enforces the same value.
+  assert.equal(MAX_DESTINATIONS, 3)
+  assert.equal((await call('/api/options')).body.maxDestinations, MAX_DESTINATIONS)
+
+  const list = destinationOptions.slice(0, MAX_DESTINATIONS).map(item => item.iso)
+  assert.equal(validateProfile({ ...VALID, destinations: list }).errors, undefined)
+  assert.ok(validateProfile({ ...VALID, destinations: [...list, destinationOptions[MAX_DESTINATIONS].iso] }).errors?.destination)
+})
+
+test('the database refuses a list the validator would have let through', db, async () => {
+  const { user } = await newUser()
+  const { profile } = await saveProfile(user.id, { ...VALID, destinations: ['de', 'nl'] })
+  await assert.rejects(
+    query('update applicant_profiles set target_countries = $1 where id = $2', [['de', 'nl', 'hu', 'it'], profile.id]),
+    /applicant_profiles_countries_sane/)
 })
 
 test('the same country twice counts once', () => {
@@ -294,7 +313,7 @@ test('every /api/me route refuses an anonymous caller', db, async () => {
 test('the options endpoint gives the client exactly what onboarding needs', async () => {
   const { status, body } = await call('/api/options')
   assert.equal(status, 200)
-  assert.deepEqual(Object.keys(body).sort(), ['destinations', 'englishLevels', 'fields', 'levels'])
+  assert.deepEqual(Object.keys(body).sort(), ['destinations', 'englishLevels', 'fields', 'levels', 'maxDestinations'])
   assert.ok(body.destinations.length >= 5 && body.fields.length >= 5)
   assert.deepEqual(body.englishLevels, ['A2', 'B1', 'B2', 'C1', 'C2'])
 })

@@ -24,7 +24,9 @@ export const fieldOptions = [...new Map(Object.values(fields).map(field => [fiel
 export const levelOptions = Object.values(degrees)
 export const englishLevels = ['A2', 'B1', 'B2', 'C1', 'C2']
 
-const MAX_DESTINATIONS = 4
+// The one place this number lives. The client reads it from /api/options and
+// 011_destination_limit.sql enforces the same value, so there is nothing to keep in sync.
+export const MAX_DESTINATIONS = 3
 
 /**
  * Destinations come in as a list in preference order. A client that still sends a single

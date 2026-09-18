@@ -9,6 +9,7 @@ import './social.css'
 import './worldmap.css'
 import './auth.css'
 import './advisor.css'
+import './streak.css'
 import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(

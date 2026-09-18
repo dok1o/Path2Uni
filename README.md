@@ -52,7 +52,7 @@ the API from one origin on `:8787`, which is what the session cookie needs.
 | 4. Recommendations | same page — each match with why it fits and what to check, drawn from every chosen country |
 | 5. Comparison | pick 2–3 and compare on English, tuition, rounds, documents |
 | 6. Roadmap | **My path** — ordered tasks with subtasks |
-| 7. Next step | the first task is the current one; **Why this step?** opens its node on the Decision Map |
+| 7. Next step | the first open task is the current one; quests are ticked one at a time, which earns XP and lights the daily streak |
 
 **Decision map** shows how the plan was derived: profile and sources feed requirements, which
 feed the tasks. **Universities** is the world map — click a highlighted country to zoom in to
@@ -132,7 +132,7 @@ ids and contacts never reach a prompt.
 ## Tests
 
 ```bash
-npm test        # 157 tests, no network, under a second
+npm test        # 167 tests, no network, under a second
 npm run test:live   # adds real Gemini calls and a live HTTP server (spends quota)
 ```
 
@@ -160,7 +160,7 @@ next number, and apply it by hand to an existing database:
 
 ```bash
 docker compose exec core-db psql -U path2uni -d path2uni_core \
-  -f /docker-entrypoint-initdb.d/008_multi_destination.sql
+  -f /docker-entrypoint-initdb.d/012_streaks_and_task_progress.sql
 ```
 
 `CLAUDE.md` carries the longer architectural notes and the constraints that are easy to break.

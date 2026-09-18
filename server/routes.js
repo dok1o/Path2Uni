@@ -10,6 +10,7 @@ import {
 } from './profiles.js'
 import { askLeo } from './chat.js'
 import { getTests, saveTests } from './tests.js'
+import { getActivity, setSubtaskProgress } from './activity.js'
 import { diagnose, explainMatches, adviceFingerprint, readCachedAdvice, writeCachedAdvice } from './advisor.js'
 import { shortlistUniversities } from '../src/data/worldUniversities.js'
 import { buildGraph } from '../src/services/planShape.js'
@@ -113,7 +114,11 @@ export async function route(request) {
 
       const plan = await createAdmissionPlan({ profile: profileForPlanning(profile), objective, apiKey })
       await savePlan(me.id, { plan, objective })
-      return json(200, { plan: { ...plan, objective } })
+      // Read it back rather than returning what we just built: the stored rows carry the task
+      // ids the per-quest progress API addresses, so a freshly generated plan is completable
+      // straight away instead of only after a reload.
+      const stored = await getCurrentPlan(me.id)
+      return json(200, { plan: stored ? rehydrate(stored, profile) : { ...plan, objective } })
     }
 
     // Stage 3 and 4 of the product path: the profile read back, and why each match suits.
@@ -156,6 +161,18 @@ export async function route(request) {
       const result = await setTaskDone(me.id, parsed.position, Boolean(parsed.done))
       if (result.error) return json(result.status, { error: result.error })
       return json(200, { plan: rehydrate(result.plan, await getProfile(me.id)) })
+    }
+
+    // The streak and the per-quest XP. Read separately from the plan because it changes on a
+    // different rhythm: the plan is regenerated rarely, this moves every time a quest is ticked.
+    if (path === '/api/me/activity' && method === 'GET') {
+      return json(200, await getActivity(me.id))
+    }
+
+    if (path === '/api/me/subtask' && method === 'POST') {
+      const result = await setSubtaskProgress(me.id, parsed)
+      if (result.error) return json(result.status, { error: result.error })
+      return json(200, { ...result, plan: rehydrate(await getCurrentPlan(me.id), await getProfile(me.id)) })
     }
 
     if (path === '/api/me/tests' && method === 'GET') {

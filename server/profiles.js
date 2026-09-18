@@ -5,6 +5,7 @@
 // the only way this stays correct once Row-Level Security is not yet in place.
 
 import { query, pool } from './db.js'
+import { recordActivityDay } from './activity.js'
 import { encrypt, decrypt, encryptionReady, isEncrypted } from './crypto.js'
 import { destinations, fields, degrees } from '../src/services/planContext.js'
 
@@ -216,11 +217,19 @@ export async function setTaskDone(userId, position, done) {
   const index = Number(position)
   if (!Number.isInteger(index) || index < 0) return { error: 'position must be a whole number', status: 400 }
 
-  const { rowCount } = await query(
-    `update roadmap_tasks set status = $3::task_status, completed_at = $4
+  const { rows: taskRows } = await query(
+    'select id, subtasks from roadmap_tasks where roadmap_id = $1 and position = $2', [rows[0].id, index])
+  if (!taskRows[0]) return { error: 'No such task', status: 404 }
+  const every = (taskRows[0].subtasks ?? []).map((_, position) => position)
+
+  await query(
+    `update roadmap_tasks set status = $3::task_status, completed_at = $4, completed_subtasks = $5::jsonb
      where roadmap_id = $1 and position = $2`,
-    [rows[0].id, index, done ? 'done' : 'todo', done ? new Date() : null])
-  if (!rowCount) return { error: 'No such task', status: 404 }
+    [rows[0].id, index, done ? 'done' : 'todo', done ? new Date() : null,
+      JSON.stringify(done ? every : [])])
+
+  // Finishing a stage counts as showing up today, exactly like finishing a single quest.
+  if (done) await recordActivityDay(userId)
 
   // Exactly one task is in progress at a time: the first one still open.
   await query(`update roadmap_tasks set status = 'todo' where roadmap_id = $1 and status = 'in_progress'`, [rows[0].id])
@@ -244,11 +253,15 @@ export async function getCurrentPlan(userId) {
   if (!roadmap) return null
 
   const { rows: taskRows } = await query(
-    `select category, title, short_title, description, subtasks, xp, due_label, status, position
+    `select id, category, title, short_title, description, subtasks, completed_subtasks,
+            xp, due_label, status, position
      from roadmap_tasks where roadmap_id = $1 order by position`, [roadmap.id])
 
   const tasks = taskRows.map((row, index) => ({
+    // `id` is the graph node id, laid out by planShape and referenced by the OSINT edges.
+    // `taskId` is the database row, which is what the per-quest progress API addresses.
     id: `task-${index + 1}-${row.category}`,
+    taskId: row.id,
     position: row.position,
     type: row.category,
     title: row.title,
@@ -256,6 +269,7 @@ export async function getCurrentPlan(userId) {
     description: row.description ?? '',
     subtasks: row.subtasks ?? [],
     xp: row.xp ?? 0,
+    completedSubtasks: Array.isArray(row.completed_subtasks) ? row.completed_subtasks : [],
     due: row.due_label ?? '',
     // 'current' now comes from the stored status rather than the position, so completing a
     // task actually moves the marker instead of leaving it on the first row forever.

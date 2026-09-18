@@ -10,7 +10,7 @@ npm run dev          # Vite dev server — also mounts the plan API at /api/ai/a
 npm run build        # production build into dist/ (gitignored — npm run server needs it built first)
 npm run preview      # serve the built bundle
 npm run server       # serves dist/ AND the API on :8787 — one origin, which is what cookie auth needs
-npm test             # 157 tests, no network (database tests skip themselves without Postgres)
+npm test             # 167 tests, no network (database tests skip themselves without Postgres)
 npm run test:live    # the above plus real Gemini calls and a live HTTP server (spends quota)
 npm run keygen       # prints fresh field-encryption keys for .env
 npm run doctor       # why the AI is quiet: missing key, missing .env, database down
@@ -91,6 +91,17 @@ An applicant picks up to three countries at onboarding ([src/Onboarding.jsx](src
 - **`validateProfile` fails the whole list on one bad code** rather than dropping it. Silently ignoring a typo would shrink someone's shortlist without telling them.
 - **`/api/me/diagnosis` builds its own shortlist and no longer reuses the plan's.** The two answer different questions, and reusing the plan's would quietly collapse the matches back to a single country.
 - The advice cache keys on `adviceFingerprint`, which includes every destination — so changing the answer changes the matches, which is the brief's "a changed answer visibly changes the result". The **Edit profile** button reopens onboarding prefilled to make that reachable.
+
+## Progress, XP and the streak
+
+A stage (`roadmap_tasks`) holds three to five quests (`subtasks`). Progress is per quest, not per stage — [server/activity.js](server/activity.js) owns it and [012_streaks_and_task_progress.sql](database/core/012_streaks_and_task_progress.sql) adds the columns.
+
+- **The server computes XP, the client never does.** `xpForSubtask()` splits a stage's reward across its quests without creating or losing XP to rounding (100 over 3 is 34+33+33), and `calculateEarnedXp()` sums only what was actually ticked. The client mirrors the same split for the "+N XP" label but always renders the server's total, so the two cannot drift.
+- **`setTaskDone` and `setSubtaskProgress` must agree.** Marking a whole stage done also fills `completed_subtasks`; otherwise a stage reads as complete while every quest under it still counts as unearned.
+- **`POST /api/me/plan` returns the plan read back from the database**, not the one just assembled, because only the stored rows carry the `taskId` the progress API addresses. Without that a freshly generated plan is uncompletable until a reload.
+- **A day is counted in the user's timezone** (`users.timezone`, default `Asia/Almaty`), not UTC. A streak that rolls over at UTC midnight punishes people for living east of London. One row per calendar day, idempotent.
+- **The streak celebration fires only when the server says the streak grew** (`event.streakExtended`), never when the client guesses.
+- `ensureActivitySchema()` re-applies the migration's DDL idempotently at runtime, because init scripts only run against a fresh volume. `npm run doctor` is the real answer to that; the guard stays so a teammate's stale database does not 500.
 
 ## Accounts
 

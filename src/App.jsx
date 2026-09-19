@@ -2643,7 +2643,7 @@ function ProfileV2({
   onEditProfile,
   onUser,
 }) {
-  const { t } = useT();
+  const { t, tParts } = useT();
   const [tab, setTab] = useState("overview");
   const [editor, setEditor] = useState(null);
   const [details, setDetails] = useState(() => {

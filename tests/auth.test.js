@@ -5,7 +5,7 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { query, isReachable, pool } from '../server/db.js'
 import { decrypt, isEncrypted } from '../server/crypto.js'
-import { hashPassword, verifyPassword, register, login, logout, userForToken, sweepSessions } from '../server/auth.js'
+import { hashPassword, verifyPassword, register, login, logout, userForToken, sweepSessions, attachEmail, markEmailVerified, userById } from '../server/auth.js'
 import { route, readCookie, sessionCookie, clearCookie } from '../server/routes.js'
 
 const up = await isReachable()
@@ -235,6 +235,31 @@ test('a full register, me, logout, me cycle over the router', db, async () => {
   assert.match(out.headers['Set-Cookie'], /Max-Age=0/)
 
   assert.equal((await call('/api/auth/me', { method: 'GET', cookie })).body.user, null)
+})
+
+test('saving the same email preserves its confirmation', db, async () => {
+  const username = fresh()
+  const email = `${username}@example.test`
+  const registered = await register({ username, password: PASSWORD, email })
+  await markEmailVerified(registered.user.id)
+
+  await attachEmail(registered.user.id, email.toUpperCase())
+  assert.equal((await userById(registered.user.id)).email_verified_at != null, true)
+})
+
+test('changing email disables settings that require a confirmed address', db, async () => {
+  const username = fresh()
+  const registered = await call('/api/auth/register', { body: { username, password: PASSWORD, email: `${username}@example.test` } })
+  const token = readCookie(registered.headers['Set-Cookie'].split(';')[0])
+  const cookie = `p2u_session=${token}`
+  await markEmailVerified(registered.body.user.id)
+  assert.equal((await call('/api/me/settings', { method: 'PUT', body: { twoFactorEnabled: true, notifyByEmail: true }, cookie })).status, 200)
+
+  const changed = await call('/api/me/email', { method: 'PUT', body: { email: `${username}.new@example.test` }, cookie })
+  assert.equal(changed.status, 200)
+  assert.equal(changed.body.user.emailVerified, false)
+  assert.equal(changed.body.user.twoFactorEnabled, false)
+  assert.equal(changed.body.user.notifyByEmail, false)
 })
 
 test('the router answers unknown paths with 404 and bad JSON with 400', db, async () => {

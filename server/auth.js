@@ -121,10 +121,17 @@ export async function findByEmail(address) {
 
 export async function attachEmail(userId, address) {
   if (!looksLikeEmail(address)) return { error: 'Enter an email address we can reach you at.', status: 400 }
+  const emailIndex = emailIndexOf(address)
   try {
     await query(
-      `update users set email_cipher = $2, email_index = $3, email_verified_at = null, updated_at = now()
-       where id = $1`, [userId, storeEmail(address), emailIndexOf(address)])
+      `update users
+          set email_cipher = $2,
+              email_verified_at = case when email_index = $3 then email_verified_at else null end,
+              two_factor_enabled = case when email_index = $3 then two_factor_enabled else false end,
+              notify_by_email = case when email_index = $3 then notify_by_email else false end,
+              email_index = $3,
+              updated_at = now()
+        where id = $1`, [userId, storeEmail(address), emailIndex])
   } catch (error) {
     if (error.code === '23505') return { error: 'That email already has an account. Sign in instead.', status: 409 }
     throw error

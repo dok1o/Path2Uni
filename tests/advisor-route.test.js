@@ -26,7 +26,10 @@ test('My Matches returns a complete first result without waiting for the model',
   const elapsed = performance.now() - started
 
   assert.equal(response.status, 200, JSON.stringify(response.body))
-  assert.ok(elapsed < 750, `the first My Matches response took ${Math.round(elapsed)}ms`)
+  // The integration suite can run against hosted Supabase, so this includes two network
+  // round-trips. Keep the budget far below the model timeout (25s) without pretending that
+  // an internet database has local-Postgres latency.
+  assert.ok(elapsed < 3000, `the first My Matches response took ${Math.round(elapsed)}ms`)
   assert.equal(typeof response.body.diagnosis.summary, 'string')
   assert.ok(response.body.diagnosis.strengths.length > 0)
   assert.ok(response.body.matches.length >= 3)

@@ -72,11 +72,12 @@ const toClient = row => ({
 })
 
 export async function getTests(userId) {
-  const profile = await getProfile(userId)
-  if (!profile) return []
   const { rows } = await query(
     `select test_code, test_name, status, score, score_text, test_date, planned_date
-     from profile_tests where profile_id = $1 order by test_code`, [profile.id])
+     from profile_tests t
+     join applicant_profiles p on p.id = t.profile_id
+     where p.user_id = $1
+     order by test_code`, [userId])
   return rows.map(toClient)
 }
 

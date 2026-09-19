@@ -97,11 +97,14 @@ export function adviceFingerprint(profile, tests = [], lang = 'en') {
   return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 32)
 }
 
-export async function readCachedAdvice(profile, fingerprint) {
+export async function readCachedAdvice(userId) {
   const { rows } = await query(
-    'select diagnosis, matches from profile_advice where profile_id = $1 and fingerprint = $2',
-    [profile.id, fingerprint])
-  return rows[0] ? { diagnosis: rows[0].diagnosis, matches: rows[0].matches, cached: true } : null
+    `select a.fingerprint, a.diagnosis, a.matches
+     from profile_advice a
+     join applicant_profiles p on p.id = a.profile_id
+     where p.user_id = $1`,
+    [userId])
+  return rows[0] ?? null
 }
 
 export async function writeCachedAdvice(profile, fingerprint, { diagnosis, matches }) {

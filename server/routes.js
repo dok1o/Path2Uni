@@ -265,9 +265,14 @@ export async function route(request) {
 
     // Stage 3 and 4 of the product path: the profile read back, and why each match suits.
     if (path === '/api/me/diagnosis' && method === 'GET') {
-      const profile = await getProfile(me.id)
+      // Independent reads share the same round-trip to a hosted database. The cached row is
+      // compared after the current fingerprint is known, instead of costing another query.
+      const [profile, tests, cached] = await Promise.all([
+        getProfile(me.id),
+        getTests(me.id),
+        readCachedAdvice(me.id),
+      ])
       if (!profile) return json(409, { error: 'Complete your profile first' })
-      const tests = await getTests(me.id)
       // The field is a hard filter. Without it the shortlist returns any university in the
       // country, and the explanation then has to justify a match that does not exist.
       const fieldTag = Object.values(FIELD_VOCAB).find(item => item.label === profile.field)?.tag ?? null
@@ -284,8 +289,9 @@ export async function route(request) {
       // Regenerated only when the answers it was built from change.
       const lang = readLang(query, parsed)
       const fingerprint = adviceFingerprint(profile, tests, lang)
-      const cached = await readCachedAdvice(profile, fingerprint)
-      if (cached) return json(200, cached)
+      if (cached?.fingerprint === fingerprint) {
+        return json(200, { diagnosis: cached.diagnosis, matches: cached.matches, cached:true })
+      }
 
       const [diagnosis, matches] = await Promise.all([
         diagnose({ apiKey:null, profile, tests, lang }),

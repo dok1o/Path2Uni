@@ -167,13 +167,15 @@ export const RU = {
   'tasks done': 'заданий сделано',
   'AI ROADMAP · CONNECTED TO SOURCES': 'ДОРОЖНАЯ КАРТА · СВЯЗАНА С ИСТОЧНИКАМИ',
   'Research to application': 'От поиска до подачи',
-  'Tap any point to open its evidence graph': 'Нажмите на любую точку, чтобы открыть её граф источников',
-  'Open in the decision map': 'Открыть в карте решений',
   'AI TASK · {index} OF {total}': 'ЗАДАНИЕ ИИ · {index} ИЗ {total}',
   'earned': 'получено',
   'Mark as done': 'Отметить выполненным',
-  'Completed — undo': 'Выполнено — отменить',
   'Open evidence graph': 'Открыть граф источников',
+  'Tap a path point to view its task details': 'Нажмите на этап пути, чтобы увидеть его задания',
+  'Task complete': 'Этап выполнен',
+  'Current task': 'Текущий этап',
+  'Locked': 'Заблокировано',
+  'Undo completion': 'Отменить выполнение',
 
   // --- карта решений
   'YOUR ADMISSION OBJECTIVE': 'ВАША ЦЕЛЬ ПОСТУПЛЕНИЯ',

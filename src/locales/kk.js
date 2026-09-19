@@ -167,13 +167,15 @@ export const KK = {
   'tasks done': 'тапсырма орындалды',
   'AI ROADMAP · CONNECTED TO SOURCES': 'ЖОЛ КАРТАСЫ · ДЕРЕККӨЗДЕРМЕН БАЙЛАНЫСҚАН',
   'Research to application': 'Іздеуден өтініш беруге дейін',
-  'Tap any point to open its evidence graph': 'Дереккөздер графын ашу үшін кез келген нүктені басыңыз',
-  'Open in the decision map': 'Шешім картасында ашу',
   'AI TASK · {index} OF {total}': 'ЖИ ТАПСЫРМАСЫ · {total} ІШІНЕН {index}',
   'earned': 'алынды',
   'Mark as done': 'Орындалды деп белгілеу',
-  'Completed — undo': 'Орындалды — болдырмау',
   'Open evidence graph': 'Дереккөздер графын ашу',
+  'Tap a path point to view its task details': 'Тапсырмаларын көру үшін жол кезеңін басыңыз',
+  'Task complete': 'Кезең аяқталды',
+  'Current task': 'Ағымдағы кезең',
+  'Locked': 'Құлыпталған',
+  'Undo completion': 'Орындалуды болдырмау',
 
   // --- шешім картасы
   'YOUR ADMISSION OBJECTIVE': 'ТҮСУ МАҚСАТЫҢЫЗ',

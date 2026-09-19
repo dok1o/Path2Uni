@@ -357,13 +357,27 @@ function GamePath({
   activity,
 }) {
   const { t, n } = useT();
-  const [selected, setSelected] = useState(1);
   const levels = plan.tasks.map((task, index) => ({
     ...task,
+    nodeId: task.id,
     id: index + 1,
     side: index % 2 ? "right" : "left",
     sub: task.due,
   }));
+  const preferredLevel =
+    levels.find((level) => level.state === "current") ??
+    levels.find((level) => level.state !== "locked") ??
+    levels[0];
+  const preferredLevelId = preferredLevel?.id ?? 1;
+  const [selected, setSelected] = useState(preferredLevelId);
+  const selectedState = levels.find((level) => level.id === selected)?.state;
+  // Returning from the evidence graph remounts My Path. Select the actual current task rather
+  // than always jumping back to stage one; also recover if an undo locks the selected stage.
+  useEffect(() => {
+    if (!selectedState || selectedState === "locked") {
+      setSelected(preferredLevelId);
+    }
+  }, [preferredLevelId, selectedState]);
   const doneCount = levels.filter((level) => level.state === "done").length;
   // Earned XP is whatever the server counted, so ticking one quest of three shows a third of
   // the stage rather than nothing until the whole stage is finished.
@@ -440,7 +454,7 @@ function GamePath({
         <div className="game-map-title">
           <span>{t("AI ROADMAP · CONNECTED TO SOURCES")}</span>
           <h2>{t("Research to application")}</h2>
-          <small>{t("Tap any point to open its evidence graph")}</small>
+          <small>{t("Tap a path point to view its task details")}</small>
         </div>
         <div className="game-map">
           <svg
@@ -455,10 +469,9 @@ function GamePath({
               key={level.id}
               style={{ top: `${16 + index * 31}%` }}
               className={`game-level ${level.state} ${level.side} ${selected === level.id ? "selected" : ""}`}
-              onClick={() => {
-                setSelected(level.id);
-                onOpenOSINT(level.type);
-              }}
+              disabled={level.state === "locked"}
+              aria-pressed={selected === level.id}
+              onClick={() => setSelected(level.id)}
             >
               <span className="level-disc">
                 <i>
@@ -468,7 +481,15 @@ function GamePath({
               </span>
               <span className="level-label">
                 <strong>{level.shortTitle}</strong>
-                <small>{t("Open in the decision map")} →</small>
+                <small>
+                  {t(
+                    level.state === "done"
+                      ? "Task complete"
+                      : level.state === "current"
+                        ? "Current task"
+                        : "Locked",
+                  )}
+                </small>
               </span>
             </button>
           ))}
@@ -515,17 +536,17 @@ function GamePath({
           </div>
           <div className="panel-actions">
             <button
-              className={`button ${active.state === "done" ? "soft" : "primary"}`}
+              className={`button task-action ${active.state === "done" ? "undo" : "primary"}`}
               onClick={() =>
                 onTaskDone(active.position, active.state !== "done")
               }
             >
-              {t(active.state === "done" ? "Completed — undo" : "Mark as done")}{" "}
+              {t(active.state === "done" ? "Undo completion" : "Mark as done")}{" "}
               <span>{active.state === "done" ? "↺" : "✓"}</span>
             </button>
             <button
-              className="button soft"
-              onClick={() => onOpenOSINT(active.type)}
+              className="button evidence-action"
+              onClick={() => onOpenOSINT(active.nodeId)}
             >
               {t("Open evidence graph")} <span>{icons.arrow}</span>
             </button>
